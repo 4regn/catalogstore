@@ -18,6 +18,7 @@ import type { FullAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../lib/order-payment-methods";
+import { effectiveProductPrice } from "../../lib/product-pricing";
 
 // Monoline SVG icon set for the sidebar/header/panels -- 1.6px stroke,
 // currentColor, 20x20 viewBox. Mirrors the icon component already
@@ -688,6 +689,36 @@ export default function Dashboard() {
   const [orderPaymentStatusFilter, setOrderPaymentStatusFilter] = useState("all");
   const [orderFulfillmentStatusFilter, setOrderFulfillmentStatusFilter] = useState("all");
   const [orderPaymentMethodFilter, setOrderPaymentMethodFilter] = useState("all");
+  // Manual order creation -- for sales that happen outside checkout (most
+  // commonly a WhatsApp order) that the seller still wants the customer to
+  // be able to look up on the normal order-tracking page. See
+  // app/api/dashboard/orders/create-manual-order/route.ts for the
+  // server-truth price/insert logic; this state is just the form.
+  const [showManualOrderModal, setShowManualOrderModal] = useState(false);
+  const [moProductQuery, setMoProductQuery] = useState("");
+  const [moProduct, setMoProduct] = useState<Product | null>(null);
+  const [moVariants, setMoVariants] = useState<Record<string, string>>({});
+  const [moQty, setMoQty] = useState(1);
+  const [moFirstName, setMoFirstName] = useState("");
+  const [moLastName, setMoLastName] = useState("");
+  const [moEmail, setMoEmail] = useState("");
+  const [moPhone, setMoPhone] = useState("");
+  const [moFulfillment, setMoFulfillment] = useState<"delivery" | "pickup">("delivery");
+  const [moAddress, setMoAddress] = useState("");
+  const [moApartment, setMoApartment] = useState("");
+  const [moCity, setMoCity] = useState("");
+  const [moProvince, setMoProvince] = useState("");
+  const [moPostalCode, setMoPostalCode] = useState("");
+  const [moShippingCost, setMoShippingCost] = useState("0");
+  const [moShippingOption, setMoShippingOption] = useState("WhatsApp order");
+  const [moPaymentMethod, setMoPaymentMethod] = useState("EFT");
+  const [moPaymentStatus, setMoPaymentStatus] = useState("paid");
+  const [moOrderStatus, setMoOrderStatus] = useState("confirmed");
+  const [moNotes, setMoNotes] = useState("");
+  const [moSendEmail, setMoSendEmail] = useState(true);
+  const [moSubmitting, setMoSubmitting] = useState(false);
+  const [moError, setMoError] = useState<string | null>(null);
+  const [moSuccess, setMoSuccess] = useState<{ reference: string; total: number } | null>(null);
   const [orderNotification, setOrderNotification] = useState<{ order_number: string; customer_name: string; total: number; id: string } | null>(null);
   // Real OS-level push notifications for new orders (see lib/push-notify.ts)
   // -- distinct from the Realtime toast/chime above, which only fires while
@@ -810,6 +841,56 @@ export default function Dashboard() {
     const { error } = await supabase.from("order_tracking_history").delete().eq("id", id);
     if (error) { alert("Failed to delete: " + error.message); return; }
     setTrackingHistory((prev) => prev.filter((row) => row.id !== id));
+  };
+
+  const resetManualOrderForm = () => {
+    setMoProductQuery(""); setMoProduct(null); setMoVariants({}); setMoQty(1);
+    setMoFirstName(""); setMoLastName(""); setMoEmail(""); setMoPhone("");
+    setMoFulfillment("delivery"); setMoAddress(""); setMoApartment(""); setMoCity(""); setMoProvince(""); setMoPostalCode("");
+    setMoShippingCost("0"); setMoShippingOption("WhatsApp order"); setMoPaymentMethod("EFT"); setMoPaymentStatus("paid"); setMoOrderStatus("confirmed");
+    setMoNotes(""); setMoSendEmail(true); setMoError(null); setMoSuccess(null);
+  };
+  const moVariantPrice = moProduct ? effectiveProductPrice(moProduct.price, moProduct.variants, moVariants) : 0;
+  const submitManualOrder = async () => {
+    setMoError(null);
+    if (!moProduct) { setMoError("Pick a product first."); return; }
+    if (!moFirstName.trim() || !moLastName.trim() || !moEmail.trim()) { setMoError("Customer name and email are required."); return; }
+    if (moFulfillment === "delivery" && (!moAddress.trim() || !moCity.trim() || !moPostalCode.trim())) { setMoError("Delivery address is incomplete."); return; }
+    setMoSubmitting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/dashboard/orders/create-manual-order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          access_token: session?.access_token,
+          productId: moProduct.id,
+          selectedVariants: moVariants,
+          qty: moQty,
+          customer: { firstName: moFirstName.trim(), lastName: moLastName.trim(), email: moEmail.trim(), phone: moPhone.trim() },
+          fulfillment: moFulfillment,
+          address: moFulfillment === "delivery" ? { address: moAddress.trim(), apartment: moApartment.trim(), city: moCity.trim(), province: moProvince.trim(), postal_code: moPostalCode.trim() } : undefined,
+          shippingCost: Number(moShippingCost) || 0,
+          shippingOption: moShippingOption.trim(),
+          paymentMethod: moPaymentMethod.trim(),
+          paymentStatus: moPaymentStatus,
+          orderStatus: moOrderStatus,
+          notes: moNotes.trim(),
+          sendConfirmationEmail: moSendEmail,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) { setMoError(json.error || "Failed to create order."); setMoSubmitting(false); return; }
+      setMoSuccess({ reference: json.order.external_id ? String(json.order.external_id).replace(/^#?/, "#") : `#${json.order.order_number}`, total: json.order.total });
+      setTotalOrdersCount((c) => (c === null ? null : c + 1));
+      if (seller?.id) {
+        const { data: freshOrders } = await supabase.from("orders").select(ORDER_COLUMNS).eq("seller_id", seller.id).order("created_at", { ascending: false }).limit(ORDERS_LIMIT);
+        if (freshOrders) setOrders(freshOrders as Order[]);
+      }
+    } catch (e) {
+      setMoError(e instanceof Error ? e.message : "Failed to create order.");
+    }
+    setMoSubmitting(false);
   };
   const addTrackingHistoryEntry = async () => {
     if (!selectedOrder || !newHistoryStatus) return;
@@ -3908,8 +3989,138 @@ export default function Dashboard() {
           {tab === "orders" && (<div>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap" as const, gap: 12 }}>
               <div><h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Orders</h1><p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Track and manage incoming orders.</p></div>
-              {selectedOrder && <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>}
+              {selectedOrder
+                ? <button onClick={() => setSelectedOrder(null)} style={{ padding: "10px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>&larr; All Orders</button>
+                : <button onClick={() => { resetManualOrderForm(); setShowManualOrderModal(true); }} style={{ padding: "10px 20px", background: N, border: "none", borderRadius: 100, color: "#1a0f08", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const }}>+ New manual order</button>}
             </div>
+
+            {showManualOrderModal && (
+              <div onClick={() => setShowManualOrderModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--panel-solid)", border: "1px solid var(--border)", borderRadius: 20, maxWidth: 640, width: "100%", padding: "28px 24px", maxHeight: "90vh", overflowY: "auto" }}>
+                  {moSuccess ? (
+                    <div style={{ textAlign: "center", padding: "20px 0" }}>
+                      <div style={{ fontSize: 40, marginBottom: 12 }}>✓</div>
+                      <h3 style={{ fontSize: 18, fontWeight: 900, textTransform: "uppercase" as const, marginBottom: 8 }}>Order created</h3>
+                      <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>Order <strong style={{ color: "var(--text)" }}>{moSuccess.reference}</strong> — R{Number(moSuccess.total).toFixed(2)} — is now trackable by the customer.</p>
+                      <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                        <button onClick={() => setShowManualOrderModal(false)} style={{ padding: "10px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Done</button>
+                        <button onClick={resetManualOrderForm} style={{ padding: "10px 20px", background: N, border: "none", borderRadius: 100, color: "#1a0f08", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>Add another</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 style={{ fontSize: 16, fontWeight: 900, textTransform: "uppercase" as const, letterSpacing: "-0.02em", marginBottom: 4 }}>New manual order</h3>
+                      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 20 }}>For a sale that happened outside checkout (e.g. over WhatsApp) — this creates a real, trackable order.</p>
+
+                      <label style={labelStyle}>Item</label>
+                      {!moProduct ? (
+                        <div style={{ marginBottom: 16 }}>
+                          <input value={moProductQuery} onChange={(e) => setMoProductQuery(e.target.value)} placeholder="Search products by name…" style={inputStyle} />
+                          {moProductQuery.trim().length > 0 && (
+                            <div style={{ marginTop: 6, maxHeight: 220, overflowY: "auto", border: "1px solid var(--border)", borderRadius: 12 }}>
+                              {products.filter((p) => p.status !== "trashed" && p.name.toLowerCase().includes(moProductQuery.trim().toLowerCase())).slice(0, 25).map((p) => (
+                                <div key={p.id} onClick={() => { setMoProduct(p); setMoVariants({}); setMoProductQuery(""); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
+                                  {p.image_url && <img src={p.image_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />}
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                                    <div style={{ fontSize: 11, color: "var(--muted-2)" }}>R{Number(p.price).toFixed(2)}{p.in_stock ? "" : " · out of stock"}</div>
+                                  </div>
+                                </div>
+                              ))}
+                              {products.filter((p) => p.status !== "trashed" && p.name.toLowerCase().includes(moProductQuery.trim().toLowerCase())).length === 0 && <div style={{ padding: 12, fontSize: 12, color: "var(--muted-2)" }}>No products match.</div>}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 16 }}>
+                          {moProduct.image_url && <img src={moProduct.image_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", flexShrink: 0 }} />}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{moProduct.name}</div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)" }}>Base R{Number(moProduct.price).toFixed(2)}</div>
+                          </div>
+                          <button onClick={() => { setMoProduct(null); setMoVariants({}); }} style={{ padding: "6px 12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Change</button>
+                        </div>
+                      )}
+
+                      {moProduct && Array.isArray(moProduct.variants) && moProduct.variants.length > 0 && (
+                        <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(moProduct.variants.length, 3)}, 1fr)`, gap: 10, marginBottom: 16 }}>
+                          {moProduct.variants.map((group) => (
+                            <div key={group.name}>
+                              <label style={labelStyle}>{group.name}</label>
+                              <select value={moVariants[group.name] || ""} onChange={(e) => setMoVariants((prev) => ({ ...prev, [group.name]: e.target.value }))} style={inputStyle}>
+                                <option value="">Choose {group.name.toLowerCase()}…</option>
+                                {group.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                        <div><label style={labelStyle}>Quantity</label><input type="number" min={1} max={999} value={moQty} onChange={(e) => setMoQty(Math.max(1, Math.floor(Number(e.target.value) || 1)))} style={inputStyle} /></div>
+                        <div><label style={labelStyle}>Item total</label><div style={{ ...inputStyle, display: "flex", alignItems: "center", background: "var(--panel-2)" }}>R{(moVariantPrice * moQty).toFixed(2)}</div></div>
+                      </div>
+
+                      <label style={{ ...labelStyle, marginTop: 4 }}>Customer</label>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                        <input value={moFirstName} onChange={(e) => setMoFirstName(e.target.value)} placeholder="First name" style={inputStyle} />
+                        <input value={moLastName} onChange={(e) => setMoLastName(e.target.value)} placeholder="Last name" style={inputStyle} />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                        <input type="email" value={moEmail} onChange={(e) => setMoEmail(e.target.value)} placeholder="Email" style={inputStyle} />
+                        <input value={moPhone} onChange={(e) => setMoPhone(e.target.value)} placeholder="Phone (WhatsApp number)" style={inputStyle} />
+                      </div>
+
+                      <label style={labelStyle}>Fulfillment</label>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                        {(["delivery", "pickup"] as const).map((f) => (
+                          <button key={f} onClick={() => setMoFulfillment(f)} style={{ flex: 1, padding: "10px 8px", background: moFulfillment === f ? "rgba(255,107,53,0.1)" : "var(--panel)", border: moFulfillment === f ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: moFulfillment === f ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "capitalize" as const }}>{f}</button>
+                        ))}
+                      </div>
+
+                      {moFulfillment === "delivery" && (
+                        <div style={{ marginBottom: 16 }}>
+                          <input value={moAddress} onChange={(e) => setMoAddress(e.target.value)} placeholder="Street address" style={{ ...inputStyle, marginBottom: 10 }} />
+                          <input value={moApartment} onChange={(e) => setMoApartment(e.target.value)} placeholder="Apartment / unit (optional)" style={{ ...inputStyle, marginBottom: 10 }} />
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                            <input value={moCity} onChange={(e) => setMoCity(e.target.value)} placeholder="City" style={inputStyle} />
+                            <input value={moProvince} onChange={(e) => setMoProvince(e.target.value)} placeholder="Province" style={inputStyle} />
+                            <input value={moPostalCode} onChange={(e) => setMoPostalCode(e.target.value)} placeholder="Postal code" style={inputStyle} />
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+                        <div><label style={labelStyle}>Shipping cost</label><input type="number" min={0} step="0.01" value={moShippingCost} onChange={(e) => setMoShippingCost(e.target.value)} style={inputStyle} /></div>
+                        <div><label style={labelStyle}>Shipping label</label><input value={moShippingOption} onChange={(e) => setMoShippingOption(e.target.value)} style={inputStyle} /></div>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 16 }}>
+                        <div><label style={labelStyle}>Payment method</label><input value={moPaymentMethod} onChange={(e) => setMoPaymentMethod(e.target.value)} style={inputStyle} /></div>
+                        <div><label style={labelStyle}>Payment status</label><select value={moPaymentStatus} onChange={(e) => setMoPaymentStatus(e.target.value)} style={inputStyle}><option value="paid">Paid</option><option value="awaiting_payment">Awaiting payment</option><option value="pending">Pending</option></select></div>
+                        <div><label style={labelStyle}>Order status</label><select value={moOrderStatus} onChange={(e) => setMoOrderStatus(e.target.value)} style={inputStyle}>{["confirmed", "processing", "shipped", "picked_up", "in_transit", "out_for_delivery", "delivered", "pending"].map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}</select></div>
+                      </div>
+
+                      <label style={labelStyle}>Notes (internal, optional)</label>
+                      <textarea value={moNotes} onChange={(e) => setMoNotes(e.target.value)} placeholder="e.g. Received via WhatsApp, customer confirmed EFT payment" style={{ ...inputStyle, minHeight: 60, resize: "vertical" as const, marginBottom: 16 }} />
+
+                      <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: 18 }}>
+                        <input type="checkbox" checked={moSendEmail} onChange={(e) => setMoSendEmail(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>Email the customer an order confirmation</span>
+                      </label>
+
+                      {moError && <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 10, color: "#ef4444", fontSize: 12, fontWeight: 600, marginBottom: 16 }}>{moError}</div>}
+
+                      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                        <button onClick={() => setShowManualOrderModal(false)} style={{ padding: "11px 20px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+                        <button onClick={submitManualOrder} disabled={moSubmitting} style={{ padding: "11px 24px", background: N, border: "none", borderRadius: 100, color: "#1a0f08", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: moSubmitting ? "default" : "pointer", opacity: moSubmitting ? 0.6 : 1, textTransform: "uppercase" as const }}>{moSubmitting ? "Creating…" : "Create order"}</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {!selectedOrder && <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1fr) repeat(3, minmax(125px, auto))", gap: 8, marginBottom: 16 }} className="order-filter-grid">
               <input value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Search order, customer, email, item, payment…" style={{ minWidth: 0, padding: "11px 13px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12, fontFamily: "'Schibsted Grotesk', sans-serif", outline: "none" }} />
               <select value={orderPaymentStatusFilter} onChange={(event) => setOrderPaymentStatusFilter(event.target.value)} style={{ padding: "11px 10px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10, color: "var(--text)", fontSize: 12 }}><option value="all">All payments</option>{Array.from(new Set(visibleOrders.map((order) => order.payment_status).filter(Boolean))).map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}</select>
