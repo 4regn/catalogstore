@@ -10,6 +10,8 @@ import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { trackStorefrontEvent, useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
 import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, shippingOptionSavings, FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { effectiveProductPrice } from "../../../../lib/product-pricing";
+import type { RankedCartBoosterProduct } from "../../../../lib/cart-booster";
 
 export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -50,7 +52,8 @@ export interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string }; }
+interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string }; fromBooster?: boolean; }
+type VariantGroup = { name: string; options: string[] };
 const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const normalisePaymentOrder = (value: unknown) => {
   const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
@@ -241,6 +244,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .product-meta{margin-top:7px;color:#777;font-size:12px}
 .fr-checkout-v2 .product-price{font-size:14px;font-weight:500;align-self:start;padding-top:3px}
 .fr-checkout-v2 .product-sale-saving{margin-top:7px;color:#00751f;font-size:11.5px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}
+.fr-checkout-v2 .product-remove{display:block;margin-top:7px;border:0;background:none;padding:0;color:#8a8a86;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .fr-checkout-v2 .product-price-stack{text-align:right;align-self:start;padding-top:3px}
 .fr-checkout-v2 .product-price-was{font-size:11px;color:#888;text-decoration:line-through;margin-bottom:2px}
 .fr-checkout-v2 .product-price-now{font-size:14px;font-weight:700;color:#050505}
@@ -249,6 +253,24 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .promo-badge{width:34px;height:34px;border-radius:5px;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 34px}
 .fr-checkout-v2 .promo-copy strong{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#050505}
 .fr-checkout-v2 .promo-copy span{display:block;margin-top:3px;font-size:12px;color:#6c6c6c}
+.fr-checkout-v2 .checkout-booster{margin:16px 0 0;padding:14px;border:1px solid #e2e2e0;border-radius:10px;background:#fafaf8}
+.fr-checkout-v2 .checkout-booster-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#050505;margin-bottom:8px}
+.fr-checkout-v2 .checkout-booster-value{color:#8a8a86;font-weight:600;letter-spacing:0;text-transform:none}
+.fr-checkout-v2 .checkout-booster-track{height:6px;border-radius:999px;background:#e6e6e2;overflow:hidden}
+.fr-checkout-v2 .checkout-booster-fill{height:100%;border-radius:inherit;background:#0a7d2c;transition:width .35s ease}
+.fr-checkout-v2 .checkout-booster-status{margin:9px 0 0;font-size:12px;font-weight:700;color:#0a7d2c}
+.fr-checkout-v2 .checkout-booster-loading{margin-top:8px;font-size:11px;color:#8a8a86}
+.fr-checkout-v2 .checkout-booster-list{margin-top:10px;border-top:1px solid #e2e2e0;padding-top:10px;display:grid;gap:12px}
+.fr-checkout-v2 .checkout-booster-item{display:flex;gap:10px;align-items:flex-start}
+.fr-checkout-v2 .checkout-booster-img{width:44px;height:52px;border-radius:6px;object-fit:cover;background:#eee;flex:0 0 auto}
+.fr-checkout-v2 .checkout-booster-item-main{flex:1;min-width:0}
+.fr-checkout-v2 .checkout-booster-item-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fr-checkout-v2 .checkout-booster-add{border:0;background:none;padding:0;color:#050505;font-weight:700;font-size:12px;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.fr-checkout-v2 .checkout-booster-add:disabled{opacity:.45;cursor:not-allowed}
+.fr-checkout-v2 .checkout-booster-item-price{font-size:12px;color:#6c6c6c;white-space:nowrap}
+.fr-checkout-v2 .checkout-booster-selects{width:100%;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fr-checkout-v2 .checkout-booster-select{padding:6px 22px 6px 8px;border:1px solid #d8d8d8;border-radius:6px;background:#fff;color:#050505;font-size:10px}
+.fr-checkout-v2 .checkout-booster-more{display:block;margin-top:8px;border:0;background:none;padding:0;color:#8a8a86;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .fr-checkout-v2 .totals{padding-top:16px}
 .fr-checkout-v2 .total-row{display:flex;justify-content:space-between;gap:20px;padding:8px 0;font-size:13px;color:#606060}
 .fr-checkout-v2 .total-row.discount{color:#00751f;font-weight:500}
@@ -341,6 +363,17 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<{ id: string; name: string; category: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  // Free-delivery progress + "add one more thing" upsell, ported from the
+  // storefront cart drawer's own fr-cart-booster (FourRegnStore.tsx) into
+  // the checkout summary -- same API, same gap/progress math, condensed to
+  // one suggestion at a time (plus a "Browse more" toggle for the rest)
+  // instead of the drawer's three-at-once list, since this sits in a much
+  // narrower summary column.
+  const [cartBooster, setCartBooster] = useState<{ threshold: number; rawSubtotal: number; payableSubtotal: number; gap: number; unlocked: boolean; recommendations: RankedCartBoosterProduct[] } | null>(null);
+  const [cartBoosterSignature, setCartBoosterSignature] = useState("");
+  const [cartBoosterLoading, setCartBoosterLoading] = useState(false);
+  const [cartBoosterShowAll, setCartBoosterShowAll] = useState(false);
+  const [cartBoosterSelections, setCartBoosterSelections] = useState<Record<string, Record<string, string>>>({});
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -771,16 +804,77 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const isCrown = seller?.template === "crown";
   const isFourRegn = seller?.template === "4regn";
 
-  // Whether the cart already qualifies for free PAXI Standard delivery on
-  // its own merchandise total -- the "add a suggested item to unlock free
-  // delivery" upsell UI that used to sit alongside this was pulled (it was
-  // breaking checkout scrolling), but the underlying free-delivery
-  // threshold check is still useful on its own: see the auto-select effect
-  // just below.
+  // Free-delivery progress bar + upsell, above the subtotal in "Your order"
+  // -- same gap/threshold math and /api/storefront/cart-booster endpoint as
+  // the storefront cart drawer's fr-cart-booster (FourRegnStore.tsx), kept
+  // in sync deliberately: a customer who saw "R150 away" in the drawer
+  // should see the same number here, not a re-derived one that could drift.
+  const cartBoosterRequestSignature = cart.map((item) => `${item.id || item.name}:${item.qty}:${JSON.stringify(item.selectedVariants || {})}`).join("|");
+  const activeCartBooster = cartBoosterSignature === cartBoosterRequestSignature ? cartBooster : null;
   const freeShipRem = isFourRegn ? Math.max(0, FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM - deliveryQualifyingSubtotal) : 0;
-  const boosterUnlocked = freeShipRem <= 0;
+  const boosterSubtotal = activeCartBooster?.payableSubtotal ?? deliveryQualifyingSubtotal;
+  const boosterGap = activeCartBooster?.gap ?? freeShipRem;
+  const boosterThreshold = activeCartBooster?.threshold ?? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM;
+  const boosterUnlocked = activeCartBooster?.unlocked ?? boosterGap <= 0;
+  const boosterProgress = Math.max(0, Math.min(100, (boosterSubtotal / boosterThreshold) * 100));
 
-  // The moment the cart's own total crosses the free-delivery threshold,
+  useEffect(() => {
+    if (!isFourRegn || fulfillment !== "delivery" || cartHasImport || boosterUnlocked || !seller?.subdomain || !cart.length) {
+      if (!cart.length) setCartBooster(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCartBoosterLoading(true);
+      try {
+        const response = await fetch("/api/storefront/cart-booster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ slug: seller.subdomain, items: cart.map((item) => ({ id: item.id, qty: item.qty, selectedVariants: item.selectedVariants })) }),
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data) { setCartBooster(data); setCartBoosterSignature(cartBoosterRequestSignature); setCartBoosterShowAll(false); }
+      } catch (error) {
+        if (!(error instanceof Error && error.name === "AbortError")) setCartBooster(null);
+      } finally {
+        if (!controller.signal.aborted) setCartBoosterLoading(false);
+      }
+    }, 220);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [isFourRegn, fulfillment, cartHasImport, boosterUnlocked, seller?.subdomain, cartBoosterRequestSignature]);
+
+  // Adds straight into this checkout's own cart state (not the storefront
+  // drawer's) -- placeOrder() below builds its request items straight off
+  // `cart`, so this is enough for the new item to actually be part of the
+  // order, no separate sync step needed.
+  const addCartBoosterProduct = (recommendation: RankedCartBoosterProduct) => {
+    const selected = cartBoosterSelections[recommendation.id] || {};
+    const variantGroups = Array.isArray(recommendation.variants) ? recommendation.variants as VariantGroup[] : [];
+    if (variantGroups.some((group) => Array.isArray(group.options) && group.options.length > 0 && !selected[group.name])) return;
+    const price = effectiveProductPrice(recommendation.price, variantGroups, selected);
+    const variantLabel = Object.entries(selected).map(([k, v]) => `${k}: ${v}`).join(", ");
+    const newItem: CartItem = {
+      id: recommendation.id,
+      name: recommendation.name,
+      price,
+      old_price: recommendation.old_price ?? null,
+      qty: 1,
+      variant: variantLabel,
+      image: recommendation.image_url || recommendation.images?.[0] || "",
+      selectedVariants: Object.keys(selected).length ? selected : undefined,
+      tags: recommendation.tags || undefined,
+      // Marks this line as something the customer didn't put in their cart
+      // themselves -- the only cart items that ever get a remove control
+      // (see the product-row render below), since a customer who'd rather
+      // just pay for delivery than keep a "free" add-on needs a way back.
+      fromBooster: true,
+    };
+    setCart((prev) => [...prev, newItem]);
+  };
+
+  // The moment free delivery is actually unlocked (whether the customer's
+  // own cart crossed the threshold, or they used the "+ Add" upsell above),
   // switch the selected shipping method to PAXI Standard -- the only one
   // that's genuinely free at this threshold. Left selected on Courier Guy
   // or Aramex, the customer would see "free delivery" messaging everywhere
@@ -1246,7 +1340,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const reference = checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn);
     return (
       <div className="fr-checkout-v2">
-        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch}`}</style>
+        {/* globals.css's site-wide scrollbar thumb is translucent white
+            (rgba(255,255,255,.08)) for the app's dark-themed pages -- on
+            this page's white background it's essentially invisible, which
+            read as "there's no way to scroll" on desktop. Overridden here
+            (not in globals.css) so only this page, while mounted, gets a
+            dark thumb that's actually visible against white. */}
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18)}::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.32)}`}</style>
         <div className="checkout-shell">
           <header className="topbar">
             <div className="topbar-inner">
@@ -1404,7 +1504,9 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const stitchFrom = formatZARDecimal(total / 6);
     return (
       <div className="fr-checkout-v2">
-        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}`}</style>
+        {/* Same visible-scrollbar override as the confirmation screen above
+            -- see that comment for why. */}
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18)}::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.32)}`}</style>
         <div className="checkout-shell">
           <header className="topbar">
             <div className="topbar-inner">
@@ -1715,6 +1817,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                             <div className="product-sale-saving">Flash Weekend Gift</div>
                           ) : saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}
                           {item.customArtwork && <div className="product-meta">✓ Your design is attached{item.customArtwork.backUrl ? " (front + back)" : ""}</div>}
+                          {item.fromBooster && <button type="button" className="product-remove" onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}>Remove</button>}
                         </div>
                         {isFlashCapGift ? (
                           <div className="product-price-stack">
@@ -1736,6 +1839,56 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div className="promo-copy"><strong>{a.title}</strong><span>Your R{a.amount.toFixed(0)} promo has been applied automatically.</span></div>
                     </div>
                   ))}
+                  {isFourRegn && fulfillment === "delivery" && !cartHasImport && !boosterUnlocked && (
+                    <div className="checkout-booster">
+                      <div className="checkout-booster-head">
+                        <span>Free delivery</span>
+                        <span className="checkout-booster-value">R{boosterSubtotal.toFixed(0)} / R{boosterThreshold.toFixed(0)}</span>
+                      </div>
+                      <div className="checkout-booster-track" role="progressbar" aria-valuemin={0} aria-valuemax={boosterThreshold} aria-valuenow={Math.min(boosterSubtotal, boosterThreshold)}>
+                        <div className="checkout-booster-fill" style={{ width: `${boosterProgress}%` }} />
+                      </div>
+                      <p className="checkout-booster-status">Add R{boosterGap.toFixed(0)} more for free shipping</p>
+                      {cartBoosterLoading && !activeCartBooster && <div className="checkout-booster-loading">Finding the best match for your cart&hellip;</div>}
+                      {!!activeCartBooster?.recommendations?.length && (
+                        <div className="checkout-booster-list">
+                          {(cartBoosterShowAll ? activeCartBooster.recommendations : activeCartBooster.recommendations.slice(0, 1)).map((recommendation) => {
+                            const groups = Array.isArray(recommendation.variants) ? recommendation.variants as VariantGroup[] : [];
+                            const selected = cartBoosterSelections[recommendation.id] || {};
+                            const allSelected = groups.every((group) => !group.options?.length || selected[group.name]);
+                            const selectedPrice = effectiveProductPrice(recommendation.price, groups, selected);
+                            const boosterImage = recommendation.image_url || recommendation.images?.[0] || "";
+                            return (
+                              <div className="checkout-booster-item" key={recommendation.id}>
+                                {boosterImage ? <img className="checkout-booster-img" src={boosterImage} alt="" /> : <span className="checkout-booster-img" />}
+                                <div className="checkout-booster-item-main">
+                                  <div className="checkout-booster-item-head">
+                                    <button type="button" className="checkout-booster-add" disabled={!allSelected} onClick={() => addCartBoosterProduct(recommendation)}>+ Add {recommendation.name}</button>
+                                    <span className="checkout-booster-item-price">R{selectedPrice.toFixed(0)}</span>
+                                  </div>
+                                  {groups.length > 0 && (
+                                    <div className="checkout-booster-selects">
+                                      {groups.map((group) => (
+                                        <select key={group.name} className="checkout-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} value={selected[group.name] || ""} onChange={(e) => setCartBoosterSelections((cur) => ({ ...cur, [recommendation.id]: { ...(cur[recommendation.id] || {}), [group.name]: e.target.value } }))}>
+                                          <option value="">Choose {group.name}</option>
+                                          {group.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {activeCartBooster.recommendations.length > 1 && (
+                            <button type="button" className="checkout-booster-more" onClick={() => setCartBoosterShowAll((show) => !show)}>
+                              {cartBoosterShowAll ? "Show less" : "Browse more"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="totals">
                     <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{summarySubtotal.toLocaleString("en-ZA")}</span></div>
                     {discountApplied && discountAmount > 0 && !isShippingDiscount && (

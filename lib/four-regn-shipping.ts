@@ -42,7 +42,7 @@ export const FOUR_REGN_PAXI_EXPRESS: CheckoutShippingOption = {
   service_level: "express",
 };
 
-export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["aramex", "courier_guy", "paxi_standard", "paxi_express"] as const;
+export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["courier_guy", "paxi_standard", "aramex", "paxi_express"] as const;
 export type FourRegnDeliveryMethodKey = typeof FOUR_REGN_DELIVERY_METHOD_ORDER[number];
 
 export function normaliseFourRegnDeliveryMethodOrder(value: unknown): FourRegnDeliveryMethodKey[] {
