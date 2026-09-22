@@ -69,6 +69,16 @@ export type StitchPaymentLinkLookup = {
   status: StitchPaymentLinkStatus;
   amountCents: number;
   merchantReference?: string;
+  // Count of entries in the link's own `payments` array -- Stitch keeps the
+  // link itself "PENDING" (open for another try) even after a declined
+  // attempt, so this is the only signal available for "the customer
+  // actually tried and it didn't go through" vs. "never even got that far."
+  // Only the array LENGTH is used, not any per-attempt field -- Stitch's
+  // exact per-attempt schema (decline reason, instrument, etc.) isn't
+  // confirmed anywhere in this codebase, so nothing beyond "how many
+  // entries" is trusted here. See order-status/route.ts's own comment for
+  // how this is used, and the deliberate risk tradeoff behind using it.
+  attemptCount: number;
 };
 
 /* Provider-side verification used when Svix webhook delivery is late or
@@ -85,8 +95,8 @@ export async function getStitchPaymentLink(paymentLinkId: string): Promise<Stitc
   const payment = json?.data?.payment ?? json?.data?.paymentLink ?? json?.data;
   if (!payment) return null;
 
-  const paidTransaction = (Array.isArray(payment.payments) ? payment.payments : [])
-    .find((entry: any) => String(entry?.status || "").toUpperCase() === "PAID");
+  const paymentAttempts = Array.isArray(payment.payments) ? payment.payments : [];
+  const paidTransaction = paymentAttempts.find((entry: any) => String(entry?.status || "").toUpperCase() === "PAID");
   const status = String(payment.status || paidTransaction?.status || "PENDING").toUpperCase() as StitchPaymentLinkStatus;
   const amountCents = Number(payment.amount ?? payment.amountCents ?? paidTransaction?.amount ?? 0);
   return {
@@ -95,6 +105,7 @@ export async function getStitchPaymentLink(paymentLinkId: string): Promise<Stitc
     status,
     amountCents,
     merchantReference: payment.merchantReference ? String(payment.merchantReference) : undefined,
+    attemptCount: paymentAttempts.length,
   };
 }
 

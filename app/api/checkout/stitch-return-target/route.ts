@@ -42,13 +42,15 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
 
-  // Same self-heal Stitch does on order-status: don't make the customer
-  // wait for a webhook (or the checkout page's own 90s poll) just because
-  // they landed here via the fallback path instead of the normal one.
+  // Same self-heal (and same accepted fast-fail tradeoff) as order-status's
+  // own Stitch branch -- see that route's own comment. Don't make the
+  // customer wait for a webhook, or the checkout page's own poll, just
+  // because they landed here via the fallback path instead of the normal
+  // one.
   if (order.payment_status === "pending" && order.stitch_link_id) {
     try {
       const payment = await getStitchPaymentLink(order.stitch_link_id);
-      if (payment?.status === "CANCELLED" || payment?.status === "EXPIRED") {
+      if (payment?.status === "CANCELLED" || payment?.status === "EXPIRED" || (payment?.attemptCount ?? 0) >= 1) {
         await markUnikOrderFailed(admin, order.id);
       }
     } catch (error) {

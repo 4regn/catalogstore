@@ -147,12 +147,30 @@ export async function GET(req: NextRequest) {
             linkId: order.stitch_link_id,
           });
         }
-      } else if ((payment?.status === "CANCELLED" || payment?.status === "EXPIRED") && order.payment_status === "pending") {
-        // A definitive terminal outcome, not just "not paid yet" -- Stitch's
-        // static return URL (app/checkout/stitch-return) can't tell success
-        // from cancellation/decline on its own, so this is what lets the
-        // customer see "payment failed, try again" immediately instead of
-        // sitting on a "processing" spinner until the 90s poll timeout.
+      } else if (
+        order.payment_status === "pending" &&
+        (payment?.status === "CANCELLED" || payment?.status === "EXPIRED" || (payment?.attemptCount ?? 0) >= 1)
+      ) {
+        // Two different signals land here, both treated as "stop waiting,
+        // let the customer retry":
+        //  - CANCELLED/EXPIRED: a definitive terminal outcome on the LINK
+        //    itself.
+        //  - attemptCount >= 1 (link otherwise still PENDING): Stitch never
+        //    flips a Payment Link's own status on a plain declined charge
+        //    (the link stays open for another try), so this is the only
+        //    signal available for "the customer actually tried and it
+        //    didn't go through" -- the link's own `payments` array has at
+        //    least one entry and none of them is PAID. Deliberate,
+        //    accepted tradeoff (see this route's own history/discussion):
+        //    this can, in principle, fire moments before a still-settling
+        //    attempt clears, which would leave the customer able to place
+        //    a second, separate order while the first also eventually pays
+        //    -- recoverPaidStitchOrders (lib/unik-orders.ts, run via
+        //    app/api/cron/recover-stitch-orders) still catches that later
+        //    revenue-wise, it just becomes a duplicate paid order needing a
+        //    manual refund rather than a lost payment. Preferred over
+        //    leaving a customer who was visibly declined staring at
+        //    "Almost there..." for up to 90 seconds.
         await markUnikOrderFailed(admin, order.id);
         const { data: refreshed } = await admin
           .from("orders")

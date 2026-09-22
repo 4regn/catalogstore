@@ -490,41 +490,61 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
 
   /* While we're showing the "Processing payment" state, poll the order
      every 3 seconds for up to 90 seconds so the page flips to "Confirmed"
-     as soon as PayFast's/Yoco's ITN or webhook lands. This is the ONLY
-     resolution path for Stitch specifically -- its webhook has exactly one
-     event type (payment.paid, see stitch-webhook/route.ts's own comment)
-     and its static return page (stitch-return/page.tsx) can't distinguish
-     a successful payment from a cancelled/declined one, so a customer who
-     backs out of Stitch lands right back here with _processing:true and
-     nothing will ever flip it. Previously this loop just gave up silently
-     at 30 attempts, leaving that customer stuck on "Almost there..."
-     forever -- now it flips _timedOut so the confirmation screens below
-     can offer a "Try again" action instead of a dead end. */
+     as soon as PayFast's/Yoco's ITN or webhook lands, or to "Payment
+     failed" as soon as order-status's own Stitch self-heal has real
+     evidence of a declined attempt (see that route's own comment) -- this
+     is the ONLY resolution path for Stitch specifically, since its webhook
+     has exactly one event type (payment.paid) and its static return page
+     (stitch-return/page.tsx) can't distinguish a successful payment from a
+     cancelled/declined one on its own.
+
+     A plain setInterval alone under-serves this: mobile/background-tab
+     timer throttling can silently stretch what's designed as a 90-second
+     wait into several real minutes if the customer's browser tab isn't in
+     the foreground the whole time. checkNow() below is also wired to
+     `visibilitychange` so the moment the customer actually looks back at
+     this tab, it checks immediately rather than waiting for a throttled
+     tick. */
   useEffect(() => {
     if (!paidOrder?._processing || !paidOrder?.order_number) return;
     let count = 0;
-    const id = setInterval(async () => {
+    let stopped = false;
+    let checking = false;
+    const checkNow = async () => {
+      if (stopped || checking) return;
+      checking = true;
       count += 1;
-      const orderId = (paidOrder as any).id || new URLSearchParams(window.location.search).get("paid");
-      if (!orderId) { clearInterval(id); return; }
-      const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(orderId)}`, { cache: "no-store" });
-      const { order: data } = await response.json().catch(() => ({ order: null }));
-      if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
-        setPaidOrder({ ...data, _processing: false });
-        clearInterval(id);
-      } else if (data && data.payment_status === "failed") {
-        // A definitive outcome (e.g. order-status's own Stitch self-heal
-        // just saw CANCELLED/EXPIRED) -- no reason to keep polling for the
-        // remaining 90s when we already know this attempt didn't go
-        // through; surface "try again" right away.
-        setPaidOrder({ ...data, _timedOut: true, _failed: true });
-        clearInterval(id);
-      } else if (count >= 30) {
-        setPaidOrder((prev) => (prev ? { ...prev, _timedOut: true } : prev));
-        clearInterval(id);
+      try {
+        const orderId = (paidOrder as any).id || new URLSearchParams(window.location.search).get("paid");
+        if (!orderId) { stopped = true; return; }
+        const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(orderId)}`, { cache: "no-store" });
+        const { order: data } = await response.json().catch(() => ({ order: null }));
+        if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
+          setPaidOrder({ ...data, _processing: false });
+          stopped = true;
+        } else if (data && data.payment_status === "failed") {
+          // A definitive outcome (order-status's own Stitch self-heal saw
+          // CANCELLED/EXPIRED, or a real declined attempt) -- no reason to
+          // keep polling for the remaining 90s; surface "try again" now.
+          setPaidOrder({ ...data, _timedOut: true, _failed: true });
+          stopped = true;
+        } else if (count >= 30) {
+          setPaidOrder((prev) => (prev ? { ...prev, _timedOut: true } : prev));
+          stopped = true;
+        }
+      } finally {
+        checking = false;
       }
-    }, 3000);
-    return () => clearInterval(id);
+    };
+    const id = setInterval(checkNow, 3000);
+    const onVisible = () => { if (document.visibilityState === "visible") checkNow(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [paidOrder?._processing, paidOrder?.order_number, slug]);
 
   /* Shared by load()'s cancelled/declined-Yoco/PayFast restore path AND the
