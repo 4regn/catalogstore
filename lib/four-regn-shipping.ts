@@ -20,7 +20,7 @@ export const FOUR_REGN_AR_MAILER: CheckoutShippingOption = {
 export const FOUR_REGN_COURIER_GUY: CheckoutShippingOption = {
   name: "Courier Guy",
   price: 149,
-  estimate: "2-3 working days",
+  estimate: "48-72hrs express delivery",
   carrier: "courierguy",
   service_level: "standard",
 };
@@ -42,7 +42,7 @@ export const FOUR_REGN_PAXI_EXPRESS: CheckoutShippingOption = {
   service_level: "express",
 };
 
-export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["paxi_standard", "courier_guy", "aramex", "paxi_express"] as const;
+export const FOUR_REGN_DELIVERY_METHOD_ORDER = ["aramex", "courier_guy", "paxi_standard", "paxi_express"] as const;
 export type FourRegnDeliveryMethodKey = typeof FOUR_REGN_DELIVERY_METHOD_ORDER[number];
 
 export function normaliseFourRegnDeliveryMethodOrder(value: unknown): FourRegnDeliveryMethodKey[] {

@@ -52,7 +52,7 @@ export interface Seller {
   };
 }
 
-interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string }; }
+interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string }; fromBooster?: boolean; }
 type VariantGroup = { name: string; options: string[] };
 const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const normalisePaymentOrder = (value: unknown) => {
@@ -231,7 +231,8 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .trust-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px;color:#686868;font-size:11px}
 .fr-checkout-v2 .trust-item{display:flex;align-items:center;gap:7px}
 .fr-checkout-v2 .trust-item svg{width:14px;height:14px}
-.fr-checkout-v2 .top-trust-row{margin:16px 0 26px;padding:14px 16px;background:#f7f6f4;border:1px solid #ececea;border-radius:12px;gap:16px 22px}
+.fr-checkout-v2 .top-trust-row{margin:0 0 18px;padding:14px 16px;background:#0a0a0a;border-radius:12px;gap:12px 20px;color:#fff}
+.fr-checkout-v2 .top-trust-row .trust-item{color:#fff}
 .fr-checkout-v2 .summary-label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#050505;margin-bottom:18px;font-weight:600}
 .fr-checkout-v2 .product-card{background:#fff;border:1px solid #dedede;border-radius:10px;padding:16px}
 .fr-checkout-v2 .product-row{display:grid;grid-template-columns:104px 1fr auto;gap:18px;align-items:center}
@@ -243,6 +244,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .product-meta{margin-top:7px;color:#777;font-size:12px}
 .fr-checkout-v2 .product-price{font-size:14px;font-weight:500;align-self:start;padding-top:3px}
 .fr-checkout-v2 .product-sale-saving{margin-top:7px;color:#00751f;font-size:11.5px;font-weight:800;letter-spacing:.035em;text-transform:uppercase}
+.fr-checkout-v2 .product-remove{display:block;margin-top:7px;border:0;background:none;padding:0;color:#8a8a86;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .fr-checkout-v2 .product-price-stack{text-align:right;align-self:start;padding-top:3px}
 .fr-checkout-v2 .product-price-was{font-size:11px;color:#888;text-decoration:line-through;margin-bottom:2px}
 .fr-checkout-v2 .product-price-now{font-size:14px;font-weight:700;color:#050505}
@@ -258,8 +260,11 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .checkout-booster-fill{height:100%;border-radius:inherit;background:#0a7d2c;transition:width .35s ease}
 .fr-checkout-v2 .checkout-booster-status{margin:9px 0 0;font-size:12px;font-weight:700;color:#0a7d2c}
 .fr-checkout-v2 .checkout-booster-loading{margin-top:8px;font-size:11px;color:#8a8a86}
-.fr-checkout-v2 .checkout-booster-list{margin-top:10px;border-top:1px solid #e2e2e0;padding-top:10px}
-.fr-checkout-v2 .checkout-booster-item{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fr-checkout-v2 .checkout-booster-list{margin-top:10px;border-top:1px solid #e2e2e0;padding-top:10px;display:grid;gap:12px}
+.fr-checkout-v2 .checkout-booster-item{display:flex;gap:10px;align-items:flex-start}
+.fr-checkout-v2 .checkout-booster-img{width:44px;height:52px;border-radius:6px;object-fit:cover;background:#eee;flex:0 0 auto}
+.fr-checkout-v2 .checkout-booster-item-main{flex:1;min-width:0}
+.fr-checkout-v2 .checkout-booster-item-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .fr-checkout-v2 .checkout-booster-add{border:0;background:none;padding:0;color:#050505;font-weight:700;font-size:12px;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .fr-checkout-v2 .checkout-booster-add:disabled{opacity:.45;cursor:not-allowed}
 .fr-checkout-v2 .checkout-booster-item-price{font-size:12px;color:#6c6c6c;white-space:nowrap}
@@ -859,9 +864,32 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       image: recommendation.image_url || recommendation.images?.[0] || "",
       selectedVariants: Object.keys(selected).length ? selected : undefined,
       tags: recommendation.tags || undefined,
+      // Marks this line as something the customer didn't put in their cart
+      // themselves -- the only cart items that ever get a remove control
+      // (see the product-row render below), since a customer who'd rather
+      // just pay for delivery than keep a "free" add-on needs a way back.
+      fromBooster: true,
     };
     setCart((prev) => [...prev, newItem]);
   };
+
+  // The moment free delivery is actually unlocked (whether the customer's
+  // own cart crossed the threshold, or they used the "+ Add" upsell above),
+  // switch the selected shipping method to PAXI Standard -- the only one
+  // that's genuinely free at this threshold. Left selected on Courier Guy
+  // or Aramex, the customer would see "free delivery" messaging everywhere
+  // while a paid shipping method sat selected, which reads as broken/
+  // misleading. A ref-tracked one-time nudge, not a persistent lock: once
+  // triggered, the customer is still free to pick a paid express option
+  // afterward if they'd rather pay for speed.
+  const boosterAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (!boosterUnlocked) { boosterAutoSelectedRef.current = false; return; }
+    if (boosterAutoSelectedRef.current || fulfillment !== "delivery") return;
+    boosterAutoSelectedRef.current = true;
+    const paxiStandardIndex = shippingOptionsConfigured.findIndex((o) => o.name === "PAXI Standard Delivery");
+    if (paxiStandardIndex !== -1) setShippingOption(paxiStandardIndex);
+  }, [boosterUnlocked, fulfillment, shippingOptionsConfigured.length]);
 
   const slCfg = seller ? (effectiveStoreConfig(seller) as any) : {};
   const slFontPair = getFontPair(seller ? slCfg.font_pair : undefined);
@@ -1497,12 +1525,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               <h1>Complete your order.</h1>
               <p className="intro">Your products are reserved while you finish checkout. Enter your delivery details, select your preferred courier, and choose how you&rsquo;d like to pay.</p>
 
-              <div className="trust-row top-trust-row">
-                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>110,000+ delivered since 2019</div>
-                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 12 6 6L21 6"></path></svg>14-day free exchange</div>
-                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>Encrypted checkout</div>
-              </div>
-
               <div className="section">
                 <div className="section-head"><h2 className="section-title">Contact</h2><span className="section-kicker">Order updates &amp; delivery alerts</span></div>
                 <div className="field-grid">
@@ -1762,6 +1784,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
 
             <aside className="summary-pane">
               <div className="summary-sticky">
+                <div className="trust-row top-trust-row">
+                  <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>110,000+ delivered since 2019</div>
+                  <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 12 6 6L21 6"></path></svg>14-day free exchange</div>
+                  <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>Encrypted checkout</div>
+                </div>
                 <div className="summary-label">Your order</div>
                 <div className="product-card">
                   {cart.map((item, i) => {
@@ -1782,6 +1809,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                             <div className="product-sale-saving">Flash Weekend Gift</div>
                           ) : saleSaving > 0 && <div className="product-sale-saving">You save R{saleSaving.toLocaleString("en-ZA")}</div>}
                           {item.customArtwork && <div className="product-meta">✓ Your design is attached{item.customArtwork.backUrl ? " (front + back)" : ""}</div>}
+                          {item.fromBooster && <button type="button" className="product-remove" onClick={() => setCart((prev) => prev.filter((_, idx) => idx !== i))}>Remove</button>}
                         </div>
                         {isFlashCapGift ? (
                           <div className="product-price-stack">
@@ -1821,20 +1849,26 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                             const selected = cartBoosterSelections[recommendation.id] || {};
                             const allSelected = groups.every((group) => !group.options?.length || selected[group.name]);
                             const selectedPrice = effectiveProductPrice(recommendation.price, groups, selected);
+                            const boosterImage = recommendation.image_url || recommendation.images?.[0] || "";
                             return (
                               <div className="checkout-booster-item" key={recommendation.id}>
-                                <button type="button" className="checkout-booster-add" disabled={!allSelected} onClick={() => addCartBoosterProduct(recommendation)}>+ Add {recommendation.name}</button>
-                                <span className="checkout-booster-item-price">R{selectedPrice.toFixed(0)}</span>
-                                {groups.length > 0 && (
-                                  <div className="checkout-booster-selects">
-                                    {groups.map((group) => (
-                                      <select key={group.name} className="checkout-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} value={selected[group.name] || ""} onChange={(e) => setCartBoosterSelections((cur) => ({ ...cur, [recommendation.id]: { ...(cur[recommendation.id] || {}), [group.name]: e.target.value } }))}>
-                                        <option value="">Choose {group.name}</option>
-                                        {group.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
-                                      </select>
-                                    ))}
+                                {boosterImage ? <img className="checkout-booster-img" src={boosterImage} alt="" /> : <span className="checkout-booster-img" />}
+                                <div className="checkout-booster-item-main">
+                                  <div className="checkout-booster-item-head">
+                                    <button type="button" className="checkout-booster-add" disabled={!allSelected} onClick={() => addCartBoosterProduct(recommendation)}>+ Add {recommendation.name}</button>
+                                    <span className="checkout-booster-item-price">R{selectedPrice.toFixed(0)}</span>
                                   </div>
-                                )}
+                                  {groups.length > 0 && (
+                                    <div className="checkout-booster-selects">
+                                      {groups.map((group) => (
+                                        <select key={group.name} className="checkout-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} value={selected[group.name] || ""} onChange={(e) => setCartBoosterSelections((cur) => ({ ...cur, [recommendation.id]: { ...(cur[recommendation.id] || {}), [group.name]: e.target.value } }))}>
+                                          <option value="">Choose {group.name}</option>
+                                          {group.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                                        </select>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             );
                           })}

@@ -5565,7 +5565,7 @@ export default function Dashboard() {
                 const methods: Record<string, { title: string; detail: string }> = {
                   paxi_standard: { title: "PAXI Standard Delivery", detail: "7–9 working days" },
                   aramex: { title: "Aramex Door-to-door", detail: "2–5 working days" },
-                  courier_guy: { title: "Courier Guy", detail: "2–3 working days · Best value" },
+                  courier_guy: { title: "Courier Guy", detail: "48-72hrs express delivery · Best value" },
                   paxi_express: { title: "PAXI Express Delivery", detail: "3–5 working days" },
                 };
                 const method = methods[key];
