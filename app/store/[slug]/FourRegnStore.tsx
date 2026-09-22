@@ -2921,6 +2921,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-express-delivery{margin-top:10px}
 .fr-express-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;background:rgba(10,127,79,.09);color:#0a7f4f;font-family:var(--body);font-size:11px;font-weight:700}
 .fr-express-pill svg{width:14px;height:14px;flex:0 0 auto}
+.fr-express-pill-time{font-weight:400}
 .fr-express-note{display:flex;align-items:center;gap:7px;margin:6px 0 0 2px;color:rgba(46,42,57,.6);font-family:var(--body);font-size:10.5px}
 .fr-express-note img{height:12px;width:auto;object-fit:contain;flex:0 0 auto}
 .fr-stitch-widget,.stitch-pay-later-widget{margin-top:12px;padding:15px 16px;border-radius:16px;background:#fff;border:1px solid rgba(21,17,24,.11);box-shadow:0 12px 28px rgba(21,17,24,.07);font-family:var(--body);color:#211b27}
@@ -6189,11 +6190,14 @@ function FreeShippingPill() {
 // Small, plain-aesthetic trust pill -- deliberately understated next to
 // FreeShippingPill's bold solid-green banner above, matching the "thin
 // svg, plain" look asked for rather than that pill's own heavier style.
+// Says "orders" (not bare "delivered") specifically so it can't be misread
+// as a per-product sales count -- this is a storewide total, not "110,000+
+// of this item".
 function DeliveredTrustPill() {
   return (
     <div className="fr-trust-pill" aria-hidden="true">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10.5 8 14.5 16 5.5" /></svg>
-      <span>110,000+ delivered since 2019</span>
+      <span>110,000+ orders delivered storewide since 2019</span>
     </div>
   );
 }
@@ -6213,7 +6217,7 @@ function ExpressDeliveryPill({ tags }: { tags?: string[] | null }) {
     <div className="fr-express-delivery">
       <div className="fr-express-pill">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4.5" width="14" height="11.5" /><path d="M15 9h4.5L23 12.7V16H15V9Z" /><circle cx="6" cy="18.5" r="2" /><circle cx="18" cy="18.5" r="2" /></svg>
-        <span>Arrives {range.earliest} &ndash; {range.latest}</span>
+        <span>Arrives {range.earliest} &ndash; {range.latest} <span className="fr-express-pill-time">before 6pm</span></span>
       </div>
       <div className="fr-express-note">
         <img src="/checkout/courierguy.png" alt="Courier Guy" />
