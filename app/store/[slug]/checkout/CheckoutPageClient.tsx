@@ -9,7 +9,9 @@ import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { trackStorefrontEvent, useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
-import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, shippingOptionSavings, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, shippingOptionSavings, FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
+import { effectiveProductPrice } from "../../../../lib/product-pricing";
+import type { RankedCartBoosterProduct } from "../../../../lib/cart-booster";
 
 export interface Seller {
   id: string; store_name: string; whatsapp_number: string; subdomain: string;
@@ -51,6 +53,7 @@ export interface Seller {
 }
 
 interface CartItem { id?: string; name: string; price: number; old_price?: number | null; qty: number; variant: string; image: string; selectedVariants?: Record<string, string>; tags?: string[]; giftTag?: string; giftOriginalPrice?: number; customArtwork?: { frontUrl: string; backUrl?: string; previewFrontUrl?: string; previewBackUrl?: string }; }
+type VariantGroup = { name: string; options: string[] };
 const PAYMENT_METHOD_ORDER = ["yoco", "stitch", "setla", "float", "payfast", "eft"] as const;
 const normalisePaymentOrder = (value: unknown) => {
   const saved = Array.isArray(value) ? value.filter((key): key is typeof PAYMENT_METHOD_ORDER[number] => PAYMENT_METHOD_ORDER.includes(key as typeof PAYMENT_METHOD_ORDER[number])) : [];
@@ -228,6 +231,7 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .trust-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:18px;color:#686868;font-size:11px}
 .fr-checkout-v2 .trust-item{display:flex;align-items:center;gap:7px}
 .fr-checkout-v2 .trust-item svg{width:14px;height:14px}
+.fr-checkout-v2 .top-trust-row{margin:16px 0 26px;padding:14px 16px;background:#f7f6f4;border:1px solid #ececea;border-radius:12px;gap:16px 22px}
 .fr-checkout-v2 .summary-label{font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:#050505;margin-bottom:18px;font-weight:600}
 .fr-checkout-v2 .product-card{background:#fff;border:1px solid #dedede;border-radius:10px;padding:16px}
 .fr-checkout-v2 .product-row{display:grid;grid-template-columns:104px 1fr auto;gap:18px;align-items:center}
@@ -247,6 +251,21 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .promo-badge{width:34px;height:34px;border-radius:5px;background:#050505;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:0 0 34px}
 .fr-checkout-v2 .promo-copy strong{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#050505}
 .fr-checkout-v2 .promo-copy span{display:block;margin-top:3px;font-size:12px;color:#6c6c6c}
+.fr-checkout-v2 .checkout-booster{margin:16px 0 0;padding:14px;border:1px solid #e2e2e0;border-radius:10px;background:#fafaf8}
+.fr-checkout-v2 .checkout-booster-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:#050505;margin-bottom:8px}
+.fr-checkout-v2 .checkout-booster-value{color:#8a8a86;font-weight:600;letter-spacing:0;text-transform:none}
+.fr-checkout-v2 .checkout-booster-track{height:6px;border-radius:999px;background:#e6e6e2;overflow:hidden}
+.fr-checkout-v2 .checkout-booster-fill{height:100%;border-radius:inherit;background:#0a7d2c;transition:width .35s ease}
+.fr-checkout-v2 .checkout-booster-status{margin:9px 0 0;font-size:12px;font-weight:700;color:#0a7d2c}
+.fr-checkout-v2 .checkout-booster-loading{margin-top:8px;font-size:11px;color:#8a8a86}
+.fr-checkout-v2 .checkout-booster-list{margin-top:10px;border-top:1px solid #e2e2e0;padding-top:10px}
+.fr-checkout-v2 .checkout-booster-item{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.fr-checkout-v2 .checkout-booster-add{border:0;background:none;padding:0;color:#050505;font-weight:700;font-size:12px;text-align:left;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.fr-checkout-v2 .checkout-booster-add:disabled{opacity:.45;cursor:not-allowed}
+.fr-checkout-v2 .checkout-booster-item-price{font-size:12px;color:#6c6c6c;white-space:nowrap}
+.fr-checkout-v2 .checkout-booster-selects{width:100%;display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.fr-checkout-v2 .checkout-booster-select{padding:6px 22px 6px 8px;border:1px solid #d8d8d8;border-radius:6px;background:#fff;color:#050505;font-size:10px}
+.fr-checkout-v2 .checkout-booster-more{display:block;margin-top:8px;border:0;background:none;padding:0;color:#8a8a86;font-size:11px;font-weight:600;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
 .fr-checkout-v2 .totals{padding-top:16px}
 .fr-checkout-v2 .total-row{display:flex;justify-content:space-between;gap:20px;padding:8px 0;font-size:13px;color:#606060}
 .fr-checkout-v2 .total-row.discount{color:#00751f;font-weight:500}
@@ -339,6 +358,17 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<{ id: string; name: string; category: string }[]>([]);
   const [loading, setLoading] = useState(false);
+  // Free-delivery progress + "add one more thing" upsell, ported from the
+  // storefront cart drawer's own fr-cart-booster (FourRegnStore.tsx) into
+  // the checkout summary -- same API, same gap/progress math, condensed to
+  // one suggestion at a time (plus a "Browse more" toggle for the rest)
+  // instead of the drawer's three-at-once list, since this sits in a much
+  // narrower summary column.
+  const [cartBooster, setCartBooster] = useState<{ threshold: number; rawSubtotal: number; payableSubtotal: number; gap: number; unlocked: boolean; recommendations: RankedCartBoosterProduct[] } | null>(null);
+  const [cartBoosterSignature, setCartBoosterSignature] = useState("");
+  const [cartBoosterLoading, setCartBoosterLoading] = useState(false);
+  const [cartBoosterShowAll, setCartBoosterShowAll] = useState(false);
+  const [cartBoosterSelections, setCartBoosterSelections] = useState<Record<string, Record<string, string>>>({});
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -768,6 +798,71 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const isRF = seller?.template === "rosefields";
   const isCrown = seller?.template === "crown";
   const isFourRegn = seller?.template === "4regn";
+
+  // Free-delivery progress bar + upsell, above the subtotal in "Your order"
+  // -- same gap/threshold math and /api/storefront/cart-booster endpoint as
+  // the storefront cart drawer's fr-cart-booster (FourRegnStore.tsx), kept
+  // in sync deliberately: a customer who saw "R150 away" in the drawer
+  // should see the same number here, not a re-derived one that could drift.
+  const cartBoosterRequestSignature = cart.map((item) => `${item.id || item.name}:${item.qty}:${JSON.stringify(item.selectedVariants || {})}`).join("|");
+  const activeCartBooster = cartBoosterSignature === cartBoosterRequestSignature ? cartBooster : null;
+  const freeShipRem = isFourRegn ? Math.max(0, FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM - deliveryQualifyingSubtotal) : 0;
+  const boosterSubtotal = activeCartBooster?.payableSubtotal ?? deliveryQualifyingSubtotal;
+  const boosterGap = activeCartBooster?.gap ?? freeShipRem;
+  const boosterThreshold = activeCartBooster?.threshold ?? FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM;
+  const boosterUnlocked = activeCartBooster?.unlocked ?? boosterGap <= 0;
+  const boosterProgress = Math.max(0, Math.min(100, (boosterSubtotal / boosterThreshold) * 100));
+
+  useEffect(() => {
+    if (!isFourRegn || fulfillment !== "delivery" || cartHasImport || boosterUnlocked || !seller?.subdomain || !cart.length) {
+      if (!cart.length) setCartBooster(null);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setCartBoosterLoading(true);
+      try {
+        const response = await fetch("/api/storefront/cart-booster", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({ slug: seller.subdomain, items: cart.map((item) => ({ id: item.id, qty: item.qty, selectedVariants: item.selectedVariants })) }),
+        });
+        const data = await response.json().catch(() => null);
+        if (response.ok && data) { setCartBooster(data); setCartBoosterSignature(cartBoosterRequestSignature); setCartBoosterShowAll(false); }
+      } catch (error) {
+        if (!(error instanceof Error && error.name === "AbortError")) setCartBooster(null);
+      } finally {
+        if (!controller.signal.aborted) setCartBoosterLoading(false);
+      }
+    }, 220);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [isFourRegn, fulfillment, cartHasImport, boosterUnlocked, seller?.subdomain, cartBoosterRequestSignature]);
+
+  // Adds straight into this checkout's own cart state (not the storefront
+  // drawer's) -- placeOrder() below builds its request items straight off
+  // `cart`, so this is enough for the new item to actually be part of the
+  // order, no separate sync step needed.
+  const addCartBoosterProduct = (recommendation: RankedCartBoosterProduct) => {
+    const selected = cartBoosterSelections[recommendation.id] || {};
+    const variantGroups = Array.isArray(recommendation.variants) ? recommendation.variants as VariantGroup[] : [];
+    if (variantGroups.some((group) => Array.isArray(group.options) && group.options.length > 0 && !selected[group.name])) return;
+    const price = effectiveProductPrice(recommendation.price, variantGroups, selected);
+    const variantLabel = Object.entries(selected).map(([k, v]) => `${k}: ${v}`).join(", ");
+    const newItem: CartItem = {
+      id: recommendation.id,
+      name: recommendation.name,
+      price,
+      old_price: recommendation.old_price ?? null,
+      qty: 1,
+      variant: variantLabel,
+      image: recommendation.image_url || recommendation.images?.[0] || "",
+      selectedVariants: Object.keys(selected).length ? selected : undefined,
+      tags: recommendation.tags || undefined,
+    };
+    setCart((prev) => [...prev, newItem]);
+  };
+
   const slCfg = seller ? (effectiveStoreConfig(seller) as any) : {};
   const slFontPair = getFontPair(seller ? slCfg.font_pair : undefined);
   const slBg = slCfg.bg_color || "#f6f3ef";
@@ -854,16 +949,21 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     stickyBg: `${slBg}f2`, emptyImg: "#e0d5ca", payCardBg: "#fff",
   };
   const selectedShippingOption = shippingOptionsConfigured[shippingOption];
-  const selectedDeliveryEstimate = fulfillment === "delivery" ? calculateFourRegnDeliveryEstimate(cartHasImport ? PREMIUM_SHIPPING_NAME : selectedShippingOption?.name) : null;
-  const selectedDeliveryEstimateDates = (() => {
-    if (!selectedDeliveryEstimate) return "";
-    const from = new Date(selectedDeliveryEstimate.fromAt);
-    const to = new Date(selectedDeliveryEstimate.toAt);
+  // Shared by the selected option's own summary line further down AND, now,
+  // every visible shipping row at once (see the shipping-method list below)
+  // -- a customer used to have to pick an option just to see its real
+  // calendar dates instead of the generic "2-3 working days" text.
+  const deliveryEstimateDatesFor = (optionName?: string | null) => {
+    if (fulfillment !== "delivery") return null;
+    const estimate = calculateFourRegnDeliveryEstimate(cartHasImport ? PREMIUM_SHIPPING_NAME : optionName);
+    if (!estimate) return null;
+    const from = new Date(estimate.fromAt);
+    const to = new Date(estimate.toAt);
     // Format in South African time so the weekday/date cannot shift for a
     // customer browsing from another timezone.
     const formatter = new Intl.DateTimeFormat("en-ZA", { weekday: "long", day: "numeric", month: "short", timeZone: "Africa/Johannesburg" });
     return { earliest: formatter.format(from), latest: formatter.format(to) };
-  })();
+  };
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
   const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
@@ -1397,6 +1497,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               <h1>Complete your order.</h1>
               <p className="intro">Your products are reserved while you finish checkout. Enter your delivery details, select your preferred courier, and choose how you&rsquo;d like to pay.</p>
 
+              <div className="trust-row top-trust-row">
+                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>110,000+ delivered since 2019</div>
+                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="m3 12 6 6L21 6"></path></svg>14-day free exchange</div>
+                <div className="trust-item"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path></svg>Encrypted checkout</div>
+              </div>
+
               <div className="section">
                 <div className="section-head"><h2 className="section-title">Contact</h2><span className="section-kicker">Order updates &amp; delivery alerts</span></div>
                 <div className="field-grid">
@@ -1458,21 +1564,29 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 <div className="section">
                   <div className="section-head"><h2 className="section-title">Shipping method</h2><span className="section-kicker">Choose your courier</span></div>
                   <div className="choice-stack">
-                    {shippingOptionsConfigured.map((opt, i) => isShippingOptionVisible(opt, i) && (
+                    {shippingOptionsConfigured.map((opt, i) => {
+                      if (!isShippingOptionVisible(opt, i)) return null;
+                      // Every visible row shows its own real calendar dates
+                      // now, not just whichever option happens to be
+                      // selected -- a customer shouldn't have to click each
+                      // one just to compare arrival windows.
+                      const rowDates = deliveryEstimateDatesFor(opt.name);
+                      return (
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>
                           <div className="radio"></div>
                           <div className="choice-main"><div className="choice-name"><ShippingTitle opt={opt} />{opt.carrier === "courierguy" && <span className="best-value-badge">BEST VALUE</span>}</div>{shippingDisplayEstimate(opt) && <div className="choice-sub">{shippingDisplayEstimate(opt)}</div>}</div>
                           <ShippingPrice opt={opt} />
                         </div>
-                        {shippingOption === i && selectedDeliveryEstimateDates && (
+                        {rowDates && (
                           <div className="delivery-estimate">
-                            <strong>Could arrive as early as {selectedDeliveryEstimateDates.earliest}</strong><br />
-                            Estimated by {selectedDeliveryEstimateDates.latest}
+                            <strong>Could arrive as early as {rowDates.earliest}</strong><br />
+                            Estimated by {rowDates.latest}
                           </div>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                   <p className="delivery-estimate-note">Delivery estimates exclude weekends and South African public holidays.</p>
                 </div>
@@ -1528,7 +1642,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                         <div className="choice-main">
                           <div className="choice-name">Stitch Express <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
                           <div className="choice-sub stitch-paylater-copy">
-                            <span className="paylater-label">Pay Later</span>
+                            <span className="paylater-label">Pay Later or Pay for your order in full</span>
                             <span className="paylater-line">Pay over 2&ndash;6 instalments, from <strong>{stitchFrom}</strong></span>
                           </div>
                           <div className="card-brand-row">
@@ -1551,7 +1665,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                         <div className="choice-main">
                           <div className="choice-name">SETLA <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
                           <div className="choice-sub stitch-paylater-copy">
-                            <span className="paylater-label">Pay in 4</span>
+                            <span className="paylater-label">Pay in 4 or Pay in 2</span>
                             <span className="paylater-line">4 interest-free payments, from <strong>{setlaFrom}</strong></span>
                           </div>
                         </div>
@@ -1588,7 +1702,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                         <div className="choice-main">
                           <div className="choice-name">Float <span className="payment-title-note">- BUY NOW PAY LATER</span></div>
                           <div className="choice-sub stitch-paylater-copy">
-                            <span className="paylater-label">Split your purchase into interest-free monthly instalments using your credit card</span>
+                            <span className="paylater-label">Credit card</span>
                             <span className="paylater-line">Pay over 2&ndash;6 instalments, from <strong>{stitchFrom}</strong></span>
                           </div>
                         </div>
@@ -1689,6 +1803,50 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       <div className="promo-copy"><strong>{a.title}</strong><span>Your R{a.amount.toFixed(0)} promo has been applied automatically.</span></div>
                     </div>
                   ))}
+                  {isFourRegn && fulfillment === "delivery" && !cartHasImport && !boosterUnlocked && (
+                    <div className="checkout-booster">
+                      <div className="checkout-booster-head">
+                        <span>Free delivery</span>
+                        <span className="checkout-booster-value">R{boosterSubtotal.toFixed(0)} / R{boosterThreshold.toFixed(0)}</span>
+                      </div>
+                      <div className="checkout-booster-track" role="progressbar" aria-valuemin={0} aria-valuemax={boosterThreshold} aria-valuenow={Math.min(boosterSubtotal, boosterThreshold)}>
+                        <div className="checkout-booster-fill" style={{ width: `${boosterProgress}%` }} />
+                      </div>
+                      <p className="checkout-booster-status">Add R{boosterGap.toFixed(0)} more for free shipping</p>
+                      {cartBoosterLoading && !activeCartBooster && <div className="checkout-booster-loading">Finding the best match for your cart&hellip;</div>}
+                      {!!activeCartBooster?.recommendations?.length && (
+                        <div className="checkout-booster-list">
+                          {(cartBoosterShowAll ? activeCartBooster.recommendations : activeCartBooster.recommendations.slice(0, 1)).map((recommendation) => {
+                            const groups = Array.isArray(recommendation.variants) ? recommendation.variants as VariantGroup[] : [];
+                            const selected = cartBoosterSelections[recommendation.id] || {};
+                            const allSelected = groups.every((group) => !group.options?.length || selected[group.name]);
+                            const selectedPrice = effectiveProductPrice(recommendation.price, groups, selected);
+                            return (
+                              <div className="checkout-booster-item" key={recommendation.id}>
+                                <button type="button" className="checkout-booster-add" disabled={!allSelected} onClick={() => addCartBoosterProduct(recommendation)}>+ Add {recommendation.name}</button>
+                                <span className="checkout-booster-item-price">R{selectedPrice.toFixed(0)}</span>
+                                {groups.length > 0 && (
+                                  <div className="checkout-booster-selects">
+                                    {groups.map((group) => (
+                                      <select key={group.name} className="checkout-booster-select" aria-label={`Choose ${group.name} for ${recommendation.name}`} value={selected[group.name] || ""} onChange={(e) => setCartBoosterSelections((cur) => ({ ...cur, [recommendation.id]: { ...(cur[recommendation.id] || {}), [group.name]: e.target.value } }))}>
+                                        <option value="">Choose {group.name}</option>
+                                        {group.options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                                      </select>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {activeCartBooster.recommendations.length > 1 && (
+                            <button type="button" className="checkout-booster-more" onClick={() => setCartBoosterShowAll((show) => !show)}>
+                              {cartBoosterShowAll ? "Show less" : "Browse more"}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="totals">
                     <div className="total-row"><span>Subtotal &middot; {itemCount} item{itemCount !== 1 ? "s" : ""}</span><span>R{summarySubtotal.toLocaleString("en-ZA")}</span></div>
                     {discountApplied && discountAmount > 0 && !isShippingDiscount && (

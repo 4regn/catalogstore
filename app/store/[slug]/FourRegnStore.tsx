@@ -9,7 +9,7 @@ import { useParams, useRouter, usePathname } from "next/navigation";
 import { effectiveStoreConfig } from "../../../lib/template-config";
 import { trackStorefrontEvent, useLiveVisitorPing } from "../../../lib/use-live-visitor-ping";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../lib/automatic-discounts";
-import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM } from "../../../lib/four-regn-shipping";
+import { FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM, calculateFourRegnDeliveryEstimate } from "../../../lib/four-regn-shipping";
 import { effectiveProductPrice } from "../../../lib/product-pricing";
 import { productMatchesQuery } from "../../../lib/product-search";
 import type { FourRegnCustomPrintEditorHandle } from "./FourRegnCustomPrintEditor";
@@ -85,6 +85,27 @@ const pInCat = (p: { category: string }, cat: string) =>
 // list itself, see checkout_config.shipping_options' own is_premium flag).
 const IMPORT_TAG_RE = /^imports?$/i;
 const hasImportTag = (tags?: string[] | null) => (tags || []).some((t) => IMPORT_TAG_RE.test((t || "").trim()));
+
+// Courier Guy's own 2-3 working day window (lib/four-regn-shipping.ts) is
+// the fastest of the three local carriers, so it's what the PDP's "Arrives
+// ..." pill promises -- a compact "Thu 25 – Fri 26 Sep" range, not the
+// full weekday name the checkout page's own date summary uses (that one
+// has a whole line to itself; this is a small pill under the price).
+// Import-tagged products never get this pill (see hasImportTag above) --
+// they ship on the seller's premium/import method instead, 7-14 working
+// days, nothing like a same-week local courier promise.
+function formatFourRegnArrivalRange(): { earliest: string; latest: string } | null {
+  const estimate = calculateFourRegnDeliveryEstimate("Courier Guy");
+  if (!estimate) return null;
+  const from = new Date(estimate.fromAt);
+  const to = new Date(estimate.toAt);
+  const dayFmt = new Intl.DateTimeFormat("en-ZA", { weekday: "short", day: "numeric", timeZone: "Africa/Johannesburg" });
+  const monthFmt = new Intl.DateTimeFormat("en-ZA", { month: "short", timeZone: "Africa/Johannesburg" });
+  const sameMonth = monthFmt.format(from) === monthFmt.format(to);
+  const earliest = sameMonth ? dayFmt.format(from) : `${dayFmt.format(from)} ${monthFmt.format(from)}`;
+  const latest = `${dayFmt.format(to)} ${monthFmt.format(to)}`;
+  return { earliest, latest };
+}
 
 /* ─── TYPES ─────────────────────────────────────────────── */
 interface SocialLinks {
@@ -2895,6 +2916,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-free-shipping-copy .nationwide{font-size:13px;font-weight:800}
 .fr-free-shipping-country{margin-left:auto;height:36px;padding-left:22px;border-left:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center}
 .fr-free-shipping-flag{width:34px;height:23px;display:block;overflow:hidden;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.18)}
+.fr-trust-pill{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:6px 13px;border:1px solid rgba(46,42,57,.16);border-radius:999px;color:var(--ink);font-family:var(--body);font-size:11px;font-weight:600;letter-spacing:.01em}
+.fr-trust-pill svg{width:12px;height:12px;flex:0 0 auto}
+.fr-express-delivery{margin-top:10px}
+.fr-express-pill{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;background:rgba(10,127,79,.09);color:#0a7f4f;font-family:var(--body);font-size:11px;font-weight:700}
+.fr-express-pill svg{width:14px;height:14px;flex:0 0 auto}
+.fr-express-note{display:flex;align-items:center;gap:7px;margin:6px 0 0 2px;color:rgba(46,42,57,.6);font-family:var(--body);font-size:10.5px}
+.fr-express-note img{height:12px;width:auto;object-fit:contain;flex:0 0 auto}
 .fr-stitch-widget,.stitch-pay-later-widget{margin-top:12px;padding:15px 16px;border-radius:16px;background:#fff;border:1px solid rgba(21,17,24,.11);box-shadow:0 12px 28px rgba(21,17,24,.07);font-family:var(--body);color:#211b27}
 .stitch-pay-later-widget{display:flex;align-items:center;gap:14px}
 .stitch-pay-later-widget>img{width:78px;height:auto;object-fit:contain;flex:0 0 auto}
@@ -4026,6 +4054,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <DeliveredTrustPill />
+                    <ExpressDeliveryPill tags={p.tags} />
                     <FreeShippingPill />
                     {seller.checkout_config?.stitch_enabled !== false && <StitchPayLaterProductWidget price={effectivePrice(p, selectedVariants)} />}
                     {(Array.isArray(p.variants) ? p.variants : []).filter(v => Array.isArray(v.options) && v.options.length > 0).map((v) => (
@@ -4762,6 +4792,8 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                       <span className="fr-pdp-price">{fmt(effectivePrice(p, selectedVariants))}</span>
                       {onSale && <span className="fr-pdp-was">{fmt(p.old_price!)}</span>}
                     </div>
+                    <DeliveredTrustPill />
+                    <ExpressDeliveryPill tags={p.tags} />
                     {pInCat(p, TEES_SALE_COLLECTION) ? <FourRegnTeesSaleCountdown variant="product" /> : <FourRegnPromoCountdown variant="product" />}
                     {flashCapActive && (
                       <FlashCapProgress
@@ -6150,6 +6182,42 @@ function FreeShippingPill() {
             <polygon points="0,65 275,300 0,535" fill="#000000" />
           </g>
         </svg>
+      </div>
+    </div>
+  );
+}
+// Small, plain-aesthetic trust pill -- deliberately understated next to
+// FreeShippingPill's bold solid-green banner above, matching the "thin
+// svg, plain" look asked for rather than that pill's own heavier style.
+function DeliveredTrustPill() {
+  return (
+    <div className="fr-trust-pill" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10.5 8 14.5 16 5.5" /></svg>
+      <span>110,000+ delivered since 2019</span>
+    </div>
+  );
+}
+// Arrival-date pill + Courier Guy express-delivery note under the price --
+// Courier Guy is the fastest of 4regn's three local couriers (2-3 working
+// days, lib/four-regn-shipping.ts), so its own window is what a customer
+// sees before they've even chosen a shipping method at checkout. Import-
+// tagged products don't get this: they ship on the seller's premium/
+// import method (7-14 working days), a local courier promise would be
+// straightforwardly false for them -- same hasImportTag gate checkout
+// itself uses to hide/restrict shipping methods for an import cart.
+function ExpressDeliveryPill({ tags }: { tags?: string[] | null }) {
+  if (hasImportTag(tags)) return null;
+  const range = formatFourRegnArrivalRange();
+  if (!range) return null;
+  return (
+    <div className="fr-express-delivery">
+      <div className="fr-express-pill">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4.5" width="14" height="11.5" /><path d="M15 9h4.5L23 12.7V16H15V9Z" /><circle cx="6" cy="18.5" r="2" /><circle cx="18" cy="18.5" r="2" /></svg>
+        <span>Arrives {range.earliest} &ndash; {range.latest}</span>
+      </div>
+      <div className="fr-express-note">
+        <img src="/checkout/courierguy.png" alt="Courier Guy" />
+        <span>Express delivery available for this item via Courier Guy</span>
       </div>
     </div>
   );
