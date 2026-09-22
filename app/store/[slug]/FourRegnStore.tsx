@@ -6197,7 +6197,7 @@ function DeliveredTrustPill() {
   return (
     <div className="fr-trust-pill" aria-hidden="true">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10.5 8 14.5 16 5.5" /></svg>
-      <span>110,000+ orders delivered storewide since 2019</span>
+      <span>110,000+ deliveries nationwide since 2019</span>
     </div>
   );
 }
