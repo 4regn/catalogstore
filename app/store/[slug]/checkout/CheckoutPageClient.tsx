@@ -399,7 +399,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ id?: string; order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; payment_status?: string; status?: string; _processing?: boolean; _timedOut?: boolean } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ id?: string; order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; payment_status?: string; status?: string; _processing?: boolean; _timedOut?: boolean; _failed?: boolean } | null>(null);
   const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
 
   // Keep the saved cart during a cancelled/failed/pending gateway attempt so
@@ -511,6 +511,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       const { order: data } = await response.json().catch(() => ({ order: null }));
       if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
         setPaidOrder({ ...data, _processing: false });
+        clearInterval(id);
+      } else if (data && data.payment_status === "failed") {
+        // A definitive outcome (e.g. order-status's own Stitch self-heal
+        // just saw CANCELLED/EXPIRED) -- no reason to keep polling for the
+        // remaining 90s when we already know this attempt didn't go
+        // through; surface "try again" right away.
+        setPaidOrder({ ...data, _timedOut: true, _failed: true });
         clearInterval(id);
       } else if (count >= 30) {
         setPaidOrder((prev) => (prev ? { ...prev, _timedOut: true } : prev));
@@ -654,6 +661,15 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       const { order } = await response.json().catch(() => ({ order: null }));
       if (order && (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered")) {
         setPaidOrder(order); setLoading(false); return;
+      }
+      if (order && order.payment_status === "failed") {
+        // Already confirmed as not-paid (order-status's own self-heal, e.g.
+        // Stitch reporting CANCELLED/EXPIRED) -- skip straight to the
+        // "couldn't confirm, try again" screen instead of a "processing"
+        // spinner that would just poll for 90s to reach the same place.
+        setPaidOrder({ ...order, _processing: true, _timedOut: true, _failed: true });
+        setLoading(false);
+        return;
       }
       if (order) {
         /* Order exists but isn't paid yet — PayFast's ITN may still be in
@@ -1384,7 +1400,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           </header>
           <main className="confirm-main">
             <div className="confirm-hero">
-              {paidOrder._processing && paidOrder._timedOut ? (
+              {paidOrder._processing && paidOrder._timedOut && paidOrder._failed ? (
+                <>
+                  <div className="confirm-icon pending"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+                  <h1>Payment failed</h1>
+                  <p>Thanks {paidOrder.customer_name}, your payment wasn&rsquo;t successful. Your order and details are saved &mdash; try again below, or pick a different payment method.</p>
+                </>
+              ) : paidOrder._processing && paidOrder._timedOut ? (
                 <>
                   <div className="confirm-icon pending"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
                   <h1>We couldn&rsquo;t confirm this payment</h1>
@@ -1443,7 +1465,13 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "60px 24px" }}>
         <div style={{ textAlign: "center", marginBottom: 40 }}>
           {seller?.logo_url ? <Image src={seller.logo_url} alt="" width={180} height={40} sizes="180px" style={{ width: "auto", height: 40, maxWidth: 180, marginBottom: 20, objectFit: "contain" }} /> : <h2 style={{ fontFamily: T.headFont, fontSize: 28, fontWeight: 300, marginBottom: 20 }}>{seller?.store_name}</h2>}
-          {paidOrder._processing && paidOrder._timedOut ? (
+          {paidOrder._processing && paidOrder._timedOut && paidOrder._failed ? (
+            <>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
+              <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>Payment failed</h1>
+              <p style={{ color: T.muted, fontSize: 14 }}>Order {checkoutOrderReference(paidOrder.external_id || paidOrder.order_number, isFourRegn)}</p>
+            </>
+          ) : paidOrder._processing && paidOrder._timedOut ? (
             <>
               <div style={{ width: 72, height: 72, borderRadius: "50%", background: "rgba(251,191,36,0.12)", border: "2px solid #fbbf24", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px" }}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>
               <h1 style={{ fontFamily: T.headFont, fontSize: 32, fontWeight: isGC || isHL || isFourRegn ? 400 : 300, marginBottom: 8 }}>We couldn&rsquo;t confirm this payment</h1>
@@ -1464,9 +1492,11 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           )}
         </div>
         <div style={{ background: T.card, borderRadius: 16, padding: 28, marginBottom: 24, border: "1px solid " + T.border }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: paidOrder._processing ? "#fbbf24" : "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{paidOrder._processing ? (paidOrder._timedOut ? "Payment Not Confirmed" : "Awaiting Confirmation") : "Order Confirmed"}</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 16, color: paidOrder._processing ? "#fbbf24" : "#22c55e", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{paidOrder._processing ? (paidOrder._failed ? "Payment Failed" : paidOrder._timedOut ? "Payment Not Confirmed" : "Awaiting Confirmation") : "Order Confirmed"}</h3>
           <p style={{ fontSize: 14, lineHeight: 1.8, color: T.muted, marginBottom: 20 }}>{paidOrder._processing
-            ? (paidOrder._timedOut
+            ? (paidOrder._failed
+              ? `Thanks ${paidOrder.customer_name}, your payment wasn't successful. Your order and details are saved -- try again below, or pick a different payment method.`
+              : paidOrder._timedOut
               ? `Thanks ${paidOrder.customer_name}, your order is saved but we haven't received confirmation from your payment provider yet. If you completed payment, check your email for the receipt -- otherwise you can try again below.`
               : `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for confirmation from your payment provider. This page will update automatically, or check your email for the receipt.`)
             : `Thank you ${paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.`}</p>

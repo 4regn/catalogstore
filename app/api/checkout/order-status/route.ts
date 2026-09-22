@@ -147,6 +147,20 @@ export async function GET(req: NextRequest) {
             linkId: order.stitch_link_id,
           });
         }
+      } else if ((payment?.status === "CANCELLED" || payment?.status === "EXPIRED") && order.payment_status === "pending") {
+        // A definitive terminal outcome, not just "not paid yet" -- Stitch's
+        // static return URL (app/checkout/stitch-return) can't tell success
+        // from cancellation/decline on its own, so this is what lets the
+        // customer see "payment failed, try again" immediately instead of
+        // sitting on a "processing" spinner until the 90s poll timeout.
+        await markUnikOrderFailed(admin, order.id);
+        const { data: refreshed } = await admin
+          .from("orders")
+          .select(ORDER_SELECT)
+          .eq("id", orderId)
+          .eq("seller_id", seller.id)
+          .maybeSingle<CheckoutOrder>();
+        if (refreshed) order = refreshed;
       }
     } catch (error) {
       console.error("Stitch self-heal failed", { orderId, linkId: order.stitch_link_id, error });
