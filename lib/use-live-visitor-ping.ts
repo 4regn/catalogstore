@@ -132,7 +132,16 @@ export function useLiveVisitorPing(
     lastPathRef.current = currentPath;
     lastCartSignatureRef.current = cartSignature;
 
-    send(eventType);
+    // customerName/customerEmail are dependencies (so the heartbeat can
+    // show who's currently at checkout), but that also means this effect
+    // re-runs on every keystroke while someone types their name or email --
+    // sending a real network request per keystroke was hammering slower
+    // connections badly enough to read as the checkout page freezing.
+    // A genuine event (reached_checkout/add_to_cart/page_view) still sends
+    // immediately; a plain re-render with no detected event (the typing
+    // case) waits briefly for typing to pause instead of firing every time.
+    const debounceMs = eventType ? 0 : 700;
+    const sendTimer = window.setTimeout(() => send(eventType), debounceMs);
     // The live session table is only a current snapshot. Record one quiet
     // timeline heartbeat per minute as well, so a customer browsing within a
     // page does not disappear from the historical timeline until they click
@@ -144,6 +153,6 @@ export function useLiveVisitorPing(
       if (timelineEvent) lastTimelineActivityRef.current = now;
       send(timelineEvent);
     }, PING_INTERVAL_MS);
-    return () => clearInterval(id);
+    return () => { window.clearTimeout(sendTimer); clearInterval(id); };
   }, [sellerId, cartItemCount, cartValue, checkout, customerName, customerEmail, JSON.stringify(cartItems)]);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
@@ -992,6 +992,29 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     const formatter = new Intl.DateTimeFormat("en-ZA", { weekday: "long", day: "numeric", month: "short", timeZone: "Africa/Johannesburg" });
     return { earliest: formatter.format(from), latest: formatter.format(to) };
   };
+  // Precomputed once per relevant change, not once per option per render --
+  // this component re-renders on every keystroke anywhere in the form
+  // (email, name, address are all plain useState here), and computing
+  // every visible option's real calendar dates from scratch that often
+  // was measurable, avoidable work piling up while someone just typed
+  // their details. The shipping list itself only reads from this map now.
+  //
+  // buildCheckoutShippingOptions returns a brand-new array reference every
+  // render regardless of whether its content actually changed, so using
+  // shippingOptionsConfigured itself as the useMemo dependency would
+  // recompute on every render too -- defeating the point. Keying on the
+  // option names joined into one string instead is cheap (plain string
+  // ops, not the holiday/date math) and only changes when the actual set
+  // of options does.
+  const shippingOptionNamesKey = shippingOptionsConfigured.map((o) => o.name).join("|");
+  const deliveryEstimateDatesByOption = useMemo(() => {
+    const map = new Map<string, { earliest: string; latest: string } | null>();
+    for (const opt of shippingOptionsConfigured) {
+      if (!map.has(opt.name)) map.set(opt.name, deliveryEstimateDatesFor(opt.name));
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingOptionNamesKey, fulfillment, cartHasImport]);
   const shipping = fulfillment === "pickup" ? 0 : (selectedShippingOption?.price || 0);
   const deliverySavings = fulfillment === "delivery" ? shippingOptionSavings(selectedShippingOption) : 0;
   const shippingDisplayName = (opt?: CheckoutShippingOption) => cartHasImport ? PREMIUM_SHIPPING_NAME : (opt?.name || "Delivery");
@@ -1600,7 +1623,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                       // now, not just whichever option happens to be
                       // selected -- a customer shouldn't have to click each
                       // one just to compare arrival windows.
-                      const rowDates = deliveryEstimateDatesFor(opt.name);
+                      const rowDates = deliveryEstimateDatesByOption.get(opt.name) ?? null;
                       return (
                       <div key={i} className={"choice" + (shippingOption === i ? " active" : "")}>
                         <div className="choice-row" onClick={() => setShippingOption(i)}>

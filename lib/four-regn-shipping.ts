@@ -172,14 +172,27 @@ function easterSunday(year: number) {
 /** Official statutory South African public holidays for a calendar year.
  * A public holiday that lands on Sunday is observed on Monday under section
  * 2(1) of the Public Holidays Act. One-off gazetted days can be added here
- * when announced without changing delivery calculations elsewhere. */
+ * when announced without changing delivery calculations elsewhere.
+ *
+ * Cached per year (module-scoped, never invalidated -- a year's holidays
+ * don't change during a running process) since addSouthAfricanWorkingDays
+ * below calls this once per day it walks (up to 9 for PAXI Standard) and
+ * the checkout page now computes every visible shipping option's estimate
+ * on every render, not just the selected one -- reconstructing this Set
+ * from scratch that many times per keystroke was real, avoidable per-
+ * render cost worth cutting regardless of where else it might matter. */
+const publicHolidaysCache = new Map<number, Set<string>>();
 export function southAfricanPublicHolidays(year: number) {
+  const cached = publicHolidaysCache.get(year);
+  if (cached) return cached;
   const fixed = [[1, 1], [3, 21], [4, 27], [5, 1], [6, 16], [8, 9], [9, 24], [12, 16], [12, 25], [12, 26]]
     .map(([month, day]) => utcDate(year, month, day));
   const easter = easterSunday(year);
   const holidays = [...fixed, plusDays(easter, -2), plusDays(easter, 1)];
   for (const holiday of [...holidays]) if (holiday.getUTCDay() === 0) holidays.push(plusDays(holiday, 1));
-  return new Set(holidays.map(dateKey));
+  const result = new Set(holidays.map(dateKey));
+  publicHolidaysCache.set(year, result);
+  return result;
 }
 
 function southAfricanCalendarDate(value: Date) {
