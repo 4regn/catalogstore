@@ -126,7 +126,7 @@ function formatZARDecimal(value: number): string {
 // below uses -- this is a reskin, not a second checkout implementation.
 const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2,.fr-checkout-v2 *{box-sizing:border-box}
-.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;overflow:visible;touch-action:pan-y}
+.fr-checkout-v2{background:#fff;color:#050505;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;min-height:100vh;overflow:visible;touch-action:pan-y pinch-zoom}
 .fr-checkout-v2 button,.fr-checkout-v2 input,.fr-checkout-v2 select{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px}
 .fr-checkout-v2 button{cursor:pointer}
 .fr-checkout-v2 .topbar{height:82px;border-bottom:1px solid #e4e4e4;background:#fff;position:sticky;top:0;z-index:20}
