@@ -46,7 +46,20 @@ export type StorefrontEventType =
   // flashWeekendOpen) -- seen fires once it actually opens (5s after
   // landing, once per session), clicked fires on tapping through to the
   // collection from it.
-  | "tees_sale_popup_seen" | "tees_sale_popup_clicked";
+  | "tees_sale_popup_seen" | "tees_sale_popup_clicked"
+  // Granular checkout funnel -- everything CheckoutPageClient.tsx fires
+  // beyond the single generic "reached_checkout" ping, so the funnel
+  // between landing on checkout and paying can actually be broken down:
+  // filled in delivery/contact details but didn't necessarily pay,
+  // selected/changed a payment or shipping method (metadata carries
+  // previousMethod/previousShippingOptionIndex so a switch is directly
+  // queryable, not something that has to be reconstructed from event
+  // order), clicked Pay Now (fires even if client-side validation then
+  // blocks the actual submit), and retried after a failed/unconfirmed
+  // payment.
+  | "checkout_delivery_details_filled"
+  | "checkout_payment_method_selected" | "checkout_shipping_method_selected"
+  | "checkout_pay_clicked" | "checkout_payment_retry";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;

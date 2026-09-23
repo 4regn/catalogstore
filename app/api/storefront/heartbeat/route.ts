@@ -32,6 +32,13 @@ const EVENT_TYPES = new Set([
   "tees_sale_collection_visited", "tees_sale_product_viewed",
   "tees_sale_added_to_cart", "tees_sale_order_completed",
   "tees_sale_popup_seen", "tees_sale_popup_clicked",
+  // Granular checkout funnel -- same three-places-in-sync requirement
+  // (this list, StorefrontEventType, and the DB check constraint) as
+  // every promo event set above. See use-live-visitor-ping.ts's own
+  // comment on what each one captures.
+  "checkout_delivery_details_filled",
+  "checkout_payment_method_selected", "checkout_shipping_method_selected",
+  "checkout_pay_clicked", "checkout_payment_retry",
 ]);
 
 function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {
@@ -41,6 +48,10 @@ function safeEventMetadata(value: unknown): Record<string, string | number | boo
     // Flash Weekend free trucker cap event metadata (see FourRegnStore.tsx's
     // trackStorefrontEvent calls for flash_cap_*).
     "source", "productId", "productName", "mode", "flashCapState",
+    // Checkout funnel event metadata (see CheckoutPageClient.tsx's
+    // trackStorefrontEvent calls for checkout_*).
+    "fulfillment", "method", "previousMethod", "shippingOptionIndex", "previousShippingOptionIndex",
+    "paymentMethod", "previousPaymentStatus", "failed",
   ]);
   const result: Record<string, string | number | boolean | null> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
