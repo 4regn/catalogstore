@@ -27,6 +27,20 @@ const TIERS = [
   { collection: "FRONT & BACK PRINTED HOODIES", salePrice: 329, originalPrice: 479 },
   { collection: "STANDARD GRAPHIC HOODIES", salePrice: 299, originalPrice: 350 },
 ];
+// These 3 pre-existing PERMANENT "buy 2" rules (each collection's normal,
+// always-on multi-buy deal) were paused for the sale's duration -- they'd
+// otherwise stack with the BIG SPRING SALE rules above on the exact same
+// collections, since the discount engine (computeAutomaticBxgyDiscount)
+// applies every matching active rule, not just one. Re-activated here by
+// their own real ids (confirmed against the live table, not re-derived
+// from title/collection matching -- too easy to accidentally catch an
+// unrelated row that way) at the same cutoff, so the normal deal comes
+// back on its own with no separate manual step once the sale ends.
+const PERMANENT_RULES_TO_RESTORE = [
+  "b4a1fad2-29b5-4419-a177-02751bd21e71", // BUY 2 FOR R449! / OVERSIZED PREMIUM TEES
+  "91ad22bc-8d81-4444-a4b5-a7f1711c4d23", // BUY 2 FOR R599! / STANDARD GRAPHIC HOODIES
+  "36203d5d-065e-4f68-88bf-2512371c6fec", // BUY 2 FOR R699! / BACK & FRONT PRINTED HOODIES
+];
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -62,7 +76,13 @@ export async function GET(req: NextRequest) {
       reverted += eligibleIds.length;
     }
 
-    if (!reverted) return NextResponse.json({ status: "ok", reverted: 0 });
+    const { error: restoreErr } = await admin
+      .from("automatic_bxgy_discounts")
+      .update({ active: true })
+      .in("id", PERMANENT_RULES_TO_RESTORE);
+    if (restoreErr) throw restoreErr;
+
+    if (!reverted) return NextResponse.json({ status: "ok", reverted: 0, restoredPermanentRules: true });
 
     // Collection/product pages read products through a persistent,
     // seller-scoped cache (lib/four-regn-catalog-cache.ts, up to a
