@@ -411,6 +411,136 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
   };
 }
 
+export type CheckoutFunnelCount = { key: string; count: number };
+export type CheckoutFunnelDailyPoint = { date: string; reachedCheckout: number; filledDeliveryDetails: number; clickedPayNow: number; paidOrders: number };
+export type CheckoutFunnelAnalytics = {
+  rangeDays: number;
+  totals: {
+    reachedCheckout: number;
+    filledDeliveryDetails: number;
+    clickedPayNow: number;
+    paidOrders: number;
+    retries: number;
+    paymentMethodSwitches: number;
+    shippingMethodSwitches: number;
+  };
+  paymentMethodSelections: CheckoutFunnelCount[];
+  shippingOptionSelections: CheckoutFunnelCount[];
+  dailySeries: CheckoutFunnelDailyPoint[];
+};
+
+const CHECKOUT_FUNNEL_EVENT_TYPES = [
+  "checkout_delivery_details_filled",
+  "checkout_payment_method_selected",
+  "checkout_shipping_method_selected",
+  "checkout_pay_clicked",
+  "checkout_payment_retry",
+] as const;
+
+/* Breaks down what happens on the checkout page itself, day by day --
+   companion to getFullAnalytics above (which already covers reachedCheckout/
+   orders at the session level) but reading the granular events
+   CheckoutPageClient.tsx now fires (see lib/use-live-visitor-ping.ts's own
+   comment on each one) so a seller can see not just "conversion went down"
+   but WHERE in the form people are dropping off, and which payment/
+   shipping method they were actually choosing when it happened.
+
+   Reads store_visitor_events directly (not the storefront_funnel_hourly
+   rollup) -- that rollup only stores per-event-type counts, not the
+   metadata (which payment method, etc.) this needs, and the existing
+   dashboard's own day-range cap (90 days, same as getFullAnalytics) keeps
+   a direct scan bounded and index-backed
+   (store_visitor_events_seller_type_time_idx covers exactly this query
+   shape: seller_id + event_type IN (...) + created_at range). Finer-
+   grained hour-by-hour analysis beyond what this daily chart shows is
+   still available by querying storefront_funnel_hourly directly. */
+export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId: string, requestedDays: number): Promise<CheckoutFunnelAnalytics> {
+  const days = Math.min(90, Math.max(7, Math.round(requestedDays) || 30));
+  const today = sastToday();
+  const dateStrings = pastNDaysStrings(days, today);
+  const rangeStartIso = sastDayStartUtc(dateStrings[0]).toISOString();
+
+  const events = await fetchAllRows<{ event_type: string; created_at: string; event_metadata: Record<string, unknown> | null }>(
+    admin, "store_visitor_events", "event_type, created_at, event_metadata", (q) =>
+      q.eq("seller_id", sellerId).in("event_type", CHECKOUT_FUNNEL_EVENT_TYPES as unknown as string[]).gte("created_at", rangeStartIso)
+  );
+
+  const dailyMap = new Map(dateStrings.map((d) => [d, { reachedCheckout: 0, filledDeliveryDetails: 0, clickedPayNow: 0, paidOrders: 0 }]));
+  const paymentMethodCounts = new Map<string, number>();
+  const shippingOptionCounts = new Map<string, number>();
+  let filledDeliveryDetails = 0, clickedPayNow = 0, retries = 0, paymentMethodSwitches = 0, shippingMethodSwitches = 0;
+
+  for (const e of events) {
+    const d = sastDateOf(e.created_at);
+    const bucket = dailyMap.get(d);
+    const meta = e.event_metadata || {};
+    switch (e.event_type) {
+      case "checkout_delivery_details_filled":
+        filledDeliveryDetails++;
+        if (bucket) bucket.filledDeliveryDetails++;
+        break;
+      case "checkout_pay_clicked":
+        clickedPayNow++;
+        if (bucket) bucket.clickedPayNow++;
+        break;
+      case "checkout_payment_retry":
+        retries++;
+        break;
+      case "checkout_payment_method_selected": {
+        const method = typeof meta.method === "string" ? meta.method : "unknown";
+        paymentMethodCounts.set(method, (paymentMethodCounts.get(method) || 0) + 1);
+        if (meta.previousMethod !== null && meta.previousMethod !== undefined) paymentMethodSwitches++;
+        break;
+      }
+      case "checkout_shipping_method_selected": {
+        const idx = typeof meta.shippingOptionIndex === "number" ? `Option ${meta.shippingOptionIndex}` : "unknown";
+        shippingOptionCounts.set(idx, (shippingOptionCounts.get(idx) || 0) + 1);
+        if (meta.previousShippingOptionIndex !== null && meta.previousShippingOptionIndex !== undefined) shippingMethodSwitches++;
+        break;
+      }
+    }
+  }
+
+  // reachedCheckout/paidOrders reuse the exact same source data
+  // getFullAnalytics already draws on (store_visitor_sessions.reached_checkout,
+  // paid orders), rather than re-deriving them from the event log, so this
+  // card's numbers always agree with the rest of the Analytics tab.
+  const [sessionsRes, orders] = await Promise.all([
+    admin.from("store_visitor_sessions").select("session_date, reached_checkout").eq("seller_id", sellerId).gte("session_date", dateStrings[0]),
+    fetchOrdersInRange(admin, sellerId, rangeStartIso),
+  ]);
+  let reachedCheckoutTotal = 0;
+  for (const row of sessionsRes.data || []) {
+    if (!row.reached_checkout) continue;
+    reachedCheckoutTotal++;
+    const bucket = dailyMap.get(row.session_date);
+    if (bucket) bucket.reachedCheckout++;
+  }
+  let paidOrdersTotal = 0;
+  for (const o of orders) {
+    if (o.payment_status !== "paid") continue;
+    paidOrdersTotal++;
+    const bucket = dailyMap.get(sastDateOf(o.created_at));
+    if (bucket) bucket.paidOrders++;
+  }
+
+  return {
+    rangeDays: days,
+    totals: {
+      reachedCheckout: reachedCheckoutTotal,
+      filledDeliveryDetails,
+      clickedPayNow,
+      paidOrders: paidOrdersTotal,
+      retries,
+      paymentMethodSwitches,
+      shippingMethodSwitches,
+    },
+    paymentMethodSelections: Array.from(paymentMethodCounts.entries()).map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count),
+    shippingOptionSelections: Array.from(shippingOptionCounts.entries()).map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count),
+    dailySeries: dateStrings.map((d) => ({ date: d, ...(dailyMap.get(d) || { reachedCheckout: 0, filledDeliveryDetails: 0, clickedPayNow: 0, paidOrders: 0 }) })),
+  };
+}
+
 function isLikelyNoisyLocation(loc: TopLocation) {
   const country = (loc.country || "").toUpperCase();
   const city = (loc.city || "").toLowerCase();

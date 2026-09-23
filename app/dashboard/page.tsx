@@ -14,7 +14,7 @@ import SupportChat from "../components/SupportChat";
 import CustomersPanel from "./components/CustomersPanel";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
-import type { FullAnalytics } from "../../lib/store-analytics";
+import type { FullAnalytics, CheckoutFunnelAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../lib/order-payment-methods";
@@ -470,6 +470,8 @@ export default function Dashboard() {
   const [liveActivityPanel, setLiveActivityPanel] = useState<"addedToCart" | "reachedCheckout" | "purchases" | "timeline" | null>(null);
   const [fullAnalytics, setFullAnalytics] = useState<FullAnalytics | null>(null);
   const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
+  const [checkoutFunnel, setCheckoutFunnel] = useState<CheckoutFunnelAnalytics | null>(null);
+  const [checkoutFunnelLoading, setCheckoutFunnelLoading] = useState(false);
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
   const [flashCapAnalytics, setFlashCapAnalytics] = useState<{ funnel: { type: string; count: number; uniqueVisitors: number }[]; orderValueTotal: number; totalEvents: number } | null>(null);
   const [flashCapAnalyticsLoading, setFlashCapAnalyticsLoading] = useState(false);
@@ -1170,6 +1172,25 @@ export default function Dashboard() {
         if (res.ok) setFullAnalytics(data);
       } catch {}
       setFullAnalyticsLoading(false);
+    })();
+  }, [loading, tab, analyticsRangeDays]);
+
+  // Same lazy/range-driven fetch as the Analytics tab's main data above,
+  // for the checkout-funnel breakdown card -- separate request (not folded
+  // into getFullAnalytics) since it scans a different table
+  // (store_visitor_events) and isn't needed for anything else on this tab.
+  useEffect(() => {
+    if (loading || tab !== "analytics") return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setCheckoutFunnelLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/checkout-funnel-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, days: analyticsRangeDays }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setCheckoutFunnel(data);
+      } catch {}
+      setCheckoutFunnelLoading(false);
     })();
   }, [loading, tab, analyticsRangeDays]);
 
@@ -5396,6 +5417,87 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
+
+                  {/* CHECKOUT FUNNEL -- where people actually drop off on the
+                      checkout page itself, not just the coarse cart/checkout/
+                      order counts above. Reads the granular checkout_* events
+                      CheckoutPageClient.tsx fires (see lib/store-analytics.ts's
+                      getCheckoutFunnelAnalytics for exactly what each stage
+                      means); hour-by-hour detail beyond this daily view is
+                      queryable directly against storefront_funnel_hourly. */}
+                  {checkoutFunnel && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Checkout funnel &middot; last {checkoutFunnel.rangeDays} days</div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
+                        {[
+                          { label: "Reached checkout", value: checkoutFunnel.totals.reachedCheckout, color: "#7aa2ff" },
+                          { label: "Filled in details", value: checkoutFunnel.totals.filledDeliveryDetails, color: "#fbbf24" },
+                          { label: "Clicked Pay Now", value: checkoutFunnel.totals.clickedPayNow, color: "#ff6b35" },
+                          { label: "Paid", value: checkoutFunnel.totals.paidOrders, color: "#22c55e" },
+                        ].map((stage, i, arr) => {
+                          const prevValue = i > 0 ? arr[i - 1].value : null;
+                          const dropPct = prevValue && prevValue > 0 ? Math.round((1 - stage.value / prevValue) * 100) : null;
+                          return (
+                            <div key={stage.label} style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                              <div style={{ fontSize: 22, fontWeight: 900, color: stage.color, letterSpacing: "-0.02em" }}>{stage.value.toLocaleString("en-ZA")}</div>
+                              <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>{stage.label}</div>
+                              {dropPct !== null && dropPct > 0 && <div style={{ fontSize: 10, color: "#f87171", fontWeight: 700, marginTop: 4 }}>-{dropPct}% from previous stage</div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" as const, marginBottom: 20, fontSize: 11, color: "var(--muted)" }}>
+                        <span><strong style={{ color: "var(--text)" }}>{checkoutFunnel.totals.retries}</strong> payment retries</span>
+                        <span><strong style={{ color: "var(--text)" }}>{checkoutFunnel.totals.paymentMethodSwitches}</strong> payment method switches</span>
+                        <span><strong style={{ color: "var(--text)" }}>{checkoutFunnel.totals.shippingMethodSwitches}</strong> shipping method switches</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>Payment method selected</div>
+                          {checkoutFunnel.paymentMethodSelections.length === 0 ? (
+                            <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No selections in this range yet.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {checkoutFunnel.paymentMethodSelections.map((m) => {
+                                const max = Math.max(1, ...checkoutFunnel.paymentMethodSelections.map((x) => x.count));
+                                return (
+                                  <div key={m.key}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span style={{ textTransform: "capitalize" as const }}>{m.key}</span><span style={{ fontWeight: 700 }}>{m.count}</span></div>
+                                    <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                      <div style={{ width: `${Math.max(4, Math.round((m.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #7aa2ff, #60a5fa)", borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>Shipping option selected</div>
+                          {checkoutFunnel.shippingOptionSelections.length === 0 ? (
+                            <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No selections in this range yet.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {checkoutFunnel.shippingOptionSelections.map((m) => {
+                                const max = Math.max(1, ...checkoutFunnel.shippingOptionSelections.map((x) => x.count));
+                                return (
+                                  <div key={m.key}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span>{m.key}</span><span style={{ fontWeight: 700 }}>{m.count}</span></div>
+                                    <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                      <div style={{ width: `${Math.max(4, Math.round((m.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #fbbf24, #f59e0b)", borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {checkoutFunnelLoading && !checkoutFunnel && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading checkout funnel&hellip;</div>
+                  )}
 
                   {/* BEST SELLERS */}
                   <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
