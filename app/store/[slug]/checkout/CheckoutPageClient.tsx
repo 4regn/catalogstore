@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
-import { usesCleanStorePaths, storePath } from "../../../../lib/store-url";
+import { usesCleanStorePaths } from "../../../../lib/store-url";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
@@ -636,17 +636,59 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
     // so a dashboard save takes effect for the very next checkout even if a
     // previous server-rendered checkout shell is still in a CDN/browser cache.
     // `initialSeller` remains a safe fallback if the refresh is interrupted.
-    let sd = initialSeller;
-    try {
-      const sellerResponse = await fetch(`/api/seller-public?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
-      if (sellerResponse.ok) {
-        const freshSeller = await sellerResponse.json();
-        if (freshSeller?.id && freshSeller?.checkout_config) sd = freshSeller as Seller;
-      }
-    } catch {
+    //
+    // Fired here but NOT awaited yet: when returning from a gateway redirect
+    // (?paid=<orderId>, handled right below) this fetch is irrelevant to
+    // resolving the payment result and must not sit in front of it in the
+    // waterfall -- a customer bounced back from Stitch/Yoco/PayFast cares
+    // about "did it go through," not this store's current checkout config.
+    const sellerRefreshPromise: Promise<Seller | null> = fetch(`/api/seller-public?slug=${encodeURIComponent(slug)}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((freshSeller) => (freshSeller?.id && freshSeller?.checkout_config ? (freshSeller as Seller) : null))
       // A checkout must still work during a short network interruption; the
       // server-provided seller data is deliberately retained as the fallback.
+      .catch(() => null);
+
+    // Check if returning from a gateway payment.
+    // Only show the success screen if the order is actually marked paid
+    // server-side — previously anyone could land on ?paid=<orderId> and
+    // see "Payment Successful" regardless of whether payment went through.
+    const paidId = p.get("paid");
+    if (paidId) {
+      // Update seller (logo/store name) whenever it resolves, without
+      // making the payment-status result below wait for it.
+      sellerRefreshPromise.then((freshSeller) => { if (freshSeller) setSeller(freshSeller); });
+      const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(paidId)}`, { cache: "no-store" });
+      const { order } = await response.json().catch(() => ({ order: null }));
+      if (order && (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered")) {
+        setPaidOrder(order); setLoading(false); return;
+      }
+      if (order && order.payment_status === "failed") {
+        // Already confirmed as not-paid (order-status's own self-heal, e.g.
+        // Stitch reporting CANCELLED/EXPIRED, or a real declined attempt)
+        // -- skip straight to the "couldn't confirm, try again" screen
+        // instead of a "processing" spinner that would just poll to reach
+        // the same place.
+        setPaidOrder({ ...order, _processing: true, _timedOut: true, _failed: true });
+        setLoading(false);
+        return;
+      }
+      if (order) {
+        /* Order exists but isn't paid yet — PayFast's ITN may still be in
+           flight. Show a "processing" message instead of false success. */
+        setPaidOrder({ ...order, _processing: true });
+        setLoading(false);
+        return;
+      }
     }
+
+    // Reached only when we didn't already return above (no ?paid=, or that
+    // order lookup came back empty) -- now actually needed, for cart
+    // product enrichment below and the cancelled/declined restore path
+    // further down.
+    let sd = initialSeller;
+    const freshSeller = await sellerRefreshPromise;
+    if (freshSeller) sd = freshSeller;
     if (sd) {
       setSeller(sd);
       const ids = cleanCart.map((item) => item.id).filter((id): id is string => !!id);
@@ -669,34 +711,6 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           return product ? { ...item, id: product.id || item.id, tags: Array.isArray(product.tags) ? product.tags : item.tags } : item;
         });
         setCart(cleanCart);
-      }
-    }
-    // Check if returning from PayFast payment.
-    // Only show the success screen if the order is actually marked paid
-    // server-side — previously anyone could land on ?paid=<orderId> and
-    // see "Payment Successful" regardless of whether payment went through.
-    const paidId = p.get("paid");
-    if (paidId) {
-      const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(paidId)}`, { cache: "no-store" });
-      const { order } = await response.json().catch(() => ({ order: null }));
-      if (order && (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered")) {
-        setPaidOrder(order); setLoading(false); return;
-      }
-      if (order && order.payment_status === "failed") {
-        // Already confirmed as not-paid (order-status's own self-heal, e.g.
-        // Stitch reporting CANCELLED/EXPIRED) -- skip straight to the
-        // "couldn't confirm, try again" screen instead of a "processing"
-        // spinner that would just poll for 90s to reach the same place.
-        setPaidOrder({ ...order, _processing: true, _timedOut: true, _failed: true });
-        setLoading(false);
-        return;
-      }
-      if (order) {
-        /* Order exists but isn't paid yet — PayFast's ITN may still be in
-           flight. Show a "processing" message instead of false success. */
-        setPaidOrder({ ...order, _processing: true });
-        setLoading(false);
-        return;
       }
     }
     // Handle cancelled PayFast/Yoco payment - reload cart from order.
@@ -1292,15 +1306,12 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
       if (effectiveMethod === "stitch" && stitchEnabled) {
         // Stitch only accepts one of up to 5 pre-registered exact redirect
         // URLs (see lib/stitch.ts's registerStitchRedirectUrl), unlike
-        // Yoco's fully dynamic successUrl -- so the order/store context is
-        // stashed here and read back by the static bridge page
-        // (app/checkout/stitch-return) once Stitch sends the customer's
-        // browser back.
-        try {
-          const returnOrigin = window.location.origin;
-          const returnPath = storePath(returnOrigin, slug, "/checkout?paid=" + orderId);
-          sessionStorage.setItem("stitch_return_ctx", JSON.stringify({ returnOrigin, returnPath }));
-        } catch {}
+        // Yoco's fully dynamic successUrl -- so nothing store-specific is
+        // passed to it at all. The static bridge
+        // (app/checkout/stitch-return/route.ts) resolves which store to
+        // send the customer back to, and whether the payment actually went
+        // through, purely from the order id Stitch itself echoes back as
+        // `reference` -- no client-side handoff needed.
         const stRes = await fetch("/api/checkout/stitch-redirect", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
