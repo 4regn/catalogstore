@@ -30,7 +30,7 @@
     },
     {
       "path": "/api/cron/rollup-storefront-funnel-hourly",
-      "schedule": "5 * * * *"
+      "schedule": "30 5 * * *"
     }
   ]
 }
