@@ -466,13 +466,21 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
 
   /* Checkout funnel instrumentation -- fills the gap where the only signal
      ever recorded for this whole page was a single "reached_checkout" ping
-     on mount. These three effects are purely additive (no new UI, no new
-     state driving behavior) and deliberately watch STATE rather than
-     individual onClick handlers -- paymentMethod/shippingOption are each
-     set from over a dozen different call sites across this file (radio
-     rows, retry flows, SETLA modal, etc.), and watching the state itself
-     is the only way to guarantee every one of them gets captured instead
-     of relying on each call site remembering to fire its own event. */
+     on mount.
+
+     Payment/shipping method selection is deliberately NOT tracked as its
+     own "fires on every change" event anymore -- that was the first cut of
+     this, and it recorded noise, not intent: clicking through Yoco -> Float
+     -> Stitch while just looking at options logged 3 "selections," and the
+     seller-config-driven default resolving after seller/paymentMethod load
+     in two separate renders (setSeller then, a tick later, setPaymentMethod)
+     spuriously logged "eft" as a real selection even on stores where EFT
+     isn't enabled, since that's this state's hardcoded initial value before
+     load() resolves the real default. What actually matters for the funnel
+     is what a customer had selected at the moment they committed to it --
+     that's exactly what checkout_pay_clicked's own metadata already
+     captures below, so the payment/shipping breakdown reads from THAT
+     event now, not a separate always-firing watcher. */
 
   // Fires once, the first moment every required contact/delivery field is
   // filled -- debounced the same 700ms as the live-ping heartbeat's own
@@ -480,7 +488,11 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
   // firing on every keystroke was measurably hurting slower connections).
   // Never fires again after that first completion, even if a field is
   // cleared and refilled -- "did they get this far at least once" is the
-  // funnel question, not every edit.
+  // funnel question, not every edit. Also suppressed while the form is
+  // being auto-refilled from a saved order (restoreFormFromOrder sets the
+  // ref directly) -- a customer bounced back here to retry a failed
+  // payment didn't "fill in their details" again just because the page
+  // restored what they'd already typed the first time.
   const deliveryDetailsFilledFiredRef = useRef(false);
   useEffect(() => {
     if (deliveryDetailsFilledFiredRef.current || !seller?.id) return;
@@ -493,28 +505,6 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
     }, 700);
     return () => window.clearTimeout(timer);
   }, [seller?.id, email, firstName, lastName, phone, fulfillment, address, city, postalCode]);
-
-  // Fires on every change, including the very first time the seller-config
-  // driven default resolves -- previousMethod is null only for that first
-  // one, so a query can distinguish "picked X initially" from "switched
-  // from X to Y" without reconstructing the sequence from raw events.
-  const prevPaymentMethodRef = useRef<typeof paymentMethod | null>(null);
-  useEffect(() => {
-    if (!seller?.id) return;
-    const previousMethod = prevPaymentMethodRef.current;
-    if (previousMethod === paymentMethod) return;
-    prevPaymentMethodRef.current = paymentMethod;
-    trackStorefrontEvent({ sellerId: seller.id, eventType: "checkout_payment_method_selected", metadata: { method: paymentMethod, previousMethod } });
-  }, [seller?.id, paymentMethod]);
-
-  const prevShippingOptionRef = useRef<number | null>(null);
-  useEffect(() => {
-    if (!seller?.id || fulfillment !== "delivery") return;
-    const previousOption = prevShippingOptionRef.current;
-    if (previousOption === shippingOption) return;
-    prevShippingOptionRef.current = shippingOption;
-    trackStorefrontEvent({ sellerId: seller.id, eventType: "checkout_shipping_method_selected", metadata: { shippingOptionIndex: shippingOption, previousShippingOptionIndex: previousOption } });
-  }, [seller?.id, shippingOption, fulfillment]);
 
   useEffect(() => {
     if (!seller?.id || !paidOrder || paidOrder._processing) return;
@@ -610,6 +600,13 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
      paidOrder itself, which /api/checkout/order-status already returns in
      the same shape). */
   const restoreFormFromOrder = async (order: any, sd: any) => {
+    // This is a REFILL, not the customer typing their details in again --
+    // don't let the checkout_delivery_details_filled watcher above treat
+    // the moment these setState calls land as a fresh completion. Without
+    // this, every retry-after-a-failed-payment (a full page reload back
+    // to checkout, which resets that ref to false) counted as a second
+    // "filled in details," inflating that number by one per retry.
+    deliveryDetailsFilledFiredRef.current = true;
     setEmail(order.customer_email || "");
     setPhone(order.customer_phone || "");
     const nameParts = String(order.customer_name || "").split(" ");
@@ -1254,10 +1251,17 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
     // validation error, since a real funnel needs to distinguish "never
     // clicked pay" from "clicked pay but couldn't submit."
     if (seller.id) {
+      // shippingOption's NAME, not its raw index -- a seller can reorder
+      // delivery methods (the dashboard's own reorder panel), which
+      // reassigns what index N actually points at over time, so a bare
+      // index recorded today can mean a completely different shipping
+      // method than the same index recorded last week. The name is the
+      // only stable identifier across that.
+      const shippingOptionName = fulfillment === "delivery" ? shippingOptionsConfigured[shippingOption]?.name || null : null;
       trackStorefrontEvent({
         sellerId: seller.id,
         eventType: "checkout_pay_clicked",
-        metadata: { paymentMethod: effectiveMethod, fulfillment, shippingOptionIndex: fulfillment === "delivery" ? shippingOption : null },
+        metadata: { paymentMethod: effectiveMethod, fulfillment, shippingOption: shippingOptionName },
       });
     }
     if (!isStoreActive(seller)) { setOrderError("This store is not currently accepting orders. Please contact the seller directly."); return; }

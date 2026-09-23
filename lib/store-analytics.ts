@@ -431,8 +431,6 @@ export type CheckoutFunnelAnalytics = {
 
 const CHECKOUT_FUNNEL_EVENT_TYPES = [
   "checkout_delivery_details_filled",
-  "checkout_payment_method_selected",
-  "checkout_shipping_method_selected",
   "checkout_pay_clicked",
   "checkout_payment_retry",
 ] as const;
@@ -444,6 +442,17 @@ const CHECKOUT_FUNNEL_EVENT_TYPES = [
    comment on each one) so a seller can see not just "conversion went down"
    but WHERE in the form people are dropping off, and which payment/
    shipping method they were actually choosing when it happened.
+
+   Payment/shipping method breakdowns are derived from checkout_pay_clicked's
+   own metadata (what was selected at the moment a customer actually
+   committed, i.e. clicked Pay Now), NOT from a separate "fires on every
+   click" selection event -- an earlier version of this did that and it
+   recorded pure noise (clicking through payment options while just
+   looking, and a render-order artifact that logged "eft" as a real
+   selection on stores where EFT isn't even enabled). Method switches
+   are visitors whose checkout_pay_clicked attempts (multiple = a retry
+   happened) used a different payment/shipping method than their first
+   attempt -- grouped by visitor_id, in chronological order.
 
    Reads store_visitor_events directly (not the storefront_funnel_hourly
    rollup) -- that rollup only stores per-event-type counts, not the
@@ -460,15 +469,16 @@ export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId
   const dateStrings = pastNDaysStrings(days, today);
   const rangeStartIso = sastDayStartUtc(dateStrings[0]).toISOString();
 
-  const events = await fetchAllRows<{ event_type: string; created_at: string; event_metadata: Record<string, unknown> | null }>(
-    admin, "store_visitor_events", "event_type, created_at, event_metadata", (q) =>
+  const events = await fetchAllRows<{ event_type: string; created_at: string; event_metadata: Record<string, unknown> | null; visitor_id: string | null }>(
+    admin, "store_visitor_events", "event_type, created_at, event_metadata, visitor_id", (q) =>
       q.eq("seller_id", sellerId).in("event_type", CHECKOUT_FUNNEL_EVENT_TYPES as unknown as string[]).gte("created_at", rangeStartIso)
   );
 
   const dailyMap = new Map(dateStrings.map((d) => [d, { reachedCheckout: 0, filledDeliveryDetails: 0, clickedPayNow: 0, paidOrders: 0 }]));
   const paymentMethodCounts = new Map<string, number>();
   const shippingOptionCounts = new Map<string, number>();
-  let filledDeliveryDetails = 0, clickedPayNow = 0, retries = 0, paymentMethodSwitches = 0, shippingMethodSwitches = 0;
+  const payClicksByVisitor = new Map<string, { created_at: string; paymentMethod: string | null; shippingOption: string | null }[]>();
+  let filledDeliveryDetails = 0, clickedPayNow = 0, retries = 0;
 
   for (const e of events) {
     const d = sastDateOf(e.created_at);
@@ -479,26 +489,31 @@ export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId
         filledDeliveryDetails++;
         if (bucket) bucket.filledDeliveryDetails++;
         break;
-      case "checkout_pay_clicked":
+      case "checkout_pay_clicked": {
         clickedPayNow++;
         if (bucket) bucket.clickedPayNow++;
+        const method = typeof meta.paymentMethod === "string" ? meta.paymentMethod : "unknown";
+        paymentMethodCounts.set(method, (paymentMethodCounts.get(method) || 0) + 1);
+        if (typeof meta.shippingOption === "string") shippingOptionCounts.set(meta.shippingOption, (shippingOptionCounts.get(meta.shippingOption) || 0) + 1);
+        if (e.visitor_id) {
+          const list = payClicksByVisitor.get(e.visitor_id) || [];
+          list.push({ created_at: e.created_at, paymentMethod: typeof meta.paymentMethod === "string" ? meta.paymentMethod : null, shippingOption: typeof meta.shippingOption === "string" ? meta.shippingOption : null });
+          payClicksByVisitor.set(e.visitor_id, list);
+        }
         break;
+      }
       case "checkout_payment_retry":
         retries++;
         break;
-      case "checkout_payment_method_selected": {
-        const method = typeof meta.method === "string" ? meta.method : "unknown";
-        paymentMethodCounts.set(method, (paymentMethodCounts.get(method) || 0) + 1);
-        if (meta.previousMethod !== null && meta.previousMethod !== undefined) paymentMethodSwitches++;
-        break;
-      }
-      case "checkout_shipping_method_selected": {
-        const idx = typeof meta.shippingOptionIndex === "number" ? `Option ${meta.shippingOptionIndex}` : "unknown";
-        shippingOptionCounts.set(idx, (shippingOptionCounts.get(idx) || 0) + 1);
-        if (meta.previousShippingOptionIndex !== null && meta.previousShippingOptionIndex !== undefined) shippingMethodSwitches++;
-        break;
-      }
     }
+  }
+
+  let paymentMethodSwitches = 0, shippingMethodSwitches = 0;
+  for (const clicks of payClicksByVisitor.values()) {
+    if (clicks.length < 2) continue;
+    clicks.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    if (clicks.some((c) => c.paymentMethod && c.paymentMethod !== clicks[0].paymentMethod)) paymentMethodSwitches++;
+    if (clicks.some((c) => c.shippingOption && c.shippingOption !== clicks[0].shippingOption)) shippingMethodSwitches++;
   }
 
   // reachedCheckout/paidOrders reuse the exact same source data

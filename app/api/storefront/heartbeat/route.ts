@@ -49,9 +49,11 @@ function safeEventMetadata(value: unknown): Record<string, string | number | boo
     // trackStorefrontEvent calls for flash_cap_*).
     "source", "productId", "productName", "mode", "flashCapState",
     // Checkout funnel event metadata (see CheckoutPageClient.tsx's
-    // trackStorefrontEvent calls for checkout_*).
-    "fulfillment", "method", "previousMethod", "shippingOptionIndex", "previousShippingOptionIndex",
-    "paymentMethod", "previousPaymentStatus", "failed",
+    // trackStorefrontEvent calls for checkout_*). shippingOption is the
+    // option's name (a string), not its index -- an index isn't stable
+    // once a seller reorders delivery methods, so checkout_pay_clicked
+    // records the name instead.
+    "fulfillment", "paymentMethod", "shippingOption", "previousPaymentStatus", "failed",
   ]);
   const result: Record<string, string | number | boolean | null> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
