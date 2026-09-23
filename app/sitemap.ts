@@ -86,8 +86,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // every cycle -- a real, avoidable cost for a resale catalog where
     // restocks are routine. Every other template still 404s on sold-out
     // (no Sold Out UI of its own yet), so it keeps the filter.
-    const products = await fetchAllRows<{ id: string; created_at: string | null; handle: string | null }>(
-      supabaseAdmin, "products", "id, created_at, handle", (q) => {
+    const products = await fetchAllRows<{ id: string; created_at: string | null; updated_at: string | null; handle: string | null }>(
+      supabaseAdmin, "products", "id, created_at, updated_at, handle", (q) => {
         let base = q.eq("seller_id", seller.id).eq("status", "published");
         if (seller.template !== "4regn") base = base.eq("in_stock", true);
         return base;
@@ -98,7 +98,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // Every seller uses the same readable canonical URL. The UUID path is
       // retained only as a legacy entry point and permanently redirects.
       const path = p.handle ? `/products/${p.handle}` : `/p/${p.id}`;
-      entries.push({ url: `${origin}${path}`, lastModified: p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
+      // updated_at (backed by a real DB trigger, see
+      // 20260923b_products_updated_at.sql) is the actual freshness signal
+      // now -- this used to read created_at, which never changes no matter
+      // how many times a product is edited after it's first added, so
+      // Google had no reason to ever prioritize recrawling an updated page.
+      entries.push({ url: `${origin}${path}`, lastModified: p.updated_at || p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
     }
   }
 
