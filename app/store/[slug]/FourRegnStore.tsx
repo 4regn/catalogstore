@@ -4276,20 +4276,38 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <FourRegnHeroSlideshow slides={heroSlides} />
               <div className="fr-hero-overlay" />
               <div className="fr-hero-inner">
-                {/* Oversized Tees flash sale overrides the seller's normal
-                    configured hero offer (SPRING SALE! pill / BUY 2 FOR
-                    R449! copy) entirely while it's active, WITHOUT touching
-                    that underlying config -- so once teesSaleActive goes
-                    false, the hero reverts to exactly whatever the seller
-                    had configured before, automatically, no cleanup step
-                    needed. */}
-                {teesSaleActive ? (
+                {/* BIG SPRING SALE / (expired) Oversized Tees flash sale both
+                    override the seller's normal configured hero offer
+                    (SPRING SALE! pill / BUY 2 FOR R449! copy) entirely while
+                    active, WITHOUT touching that underlying config -- so
+                    once BIG_SPRING_SALE_ACTIVE/teesSaleActive goes false,
+                    the hero reverts to exactly whatever the seller had
+                    configured before, automatically, no cleanup step
+                    needed. An explicit override block here (not just
+                    relying on normalizeOversizedTeePromoCopy's text-swap
+                    below) since it covers whatever the seller's hero is
+                    ACTUALLY configured to say right now, whatever that is,
+                    rather than depending on it happening to match a known
+                    old-promo string. */}
+                {BIG_SPRING_SALE_ACTIVE ? (
+                  <div className="fr-hero-pill">BIG SPRING SALE!</div>
+                ) : teesSaleActive ? (
                   <div className="fr-hero-pill">FLASH SALE!</div>
                 ) : heroUsesSpringSalePill ? (
                   <div className="fr-hero-pill">SPRING SALE!</div>
                 ) : showHeroPill ? <div className="fr-hero-pill">{heroPillLabel}</div> : null}
                 {displayHeroLabel && <div className="fr-hero-label">{displayHeroLabel}</div>}
-                {teesSaleActive ? (
+                {BIG_SPRING_SALE_ACTIVE ? (
+                  <p className="fr-hero-offer">
+                    {renderOfferLine("OVERSIZED PREMIUM TEES: BUY 2 FOR R399!", "bss-tees")}
+                    <br />
+                    {renderOfferLine("PRINTED HOODIES: BUY 2 FOR R599!", "bss-printed-hoodies")}
+                    <br />
+                    {renderOfferLine("GRAPHIC HOODIES: BUY 2 FOR R549!", "bss-graphic-hoodies")}
+                    <span className="fr-hero-offer-note">Ends 2 October 23:59</span>
+                    <span className="fr-hero-offer-note">Discount automatically applied at checkout.</span>
+                  </p>
+                ) : teesSaleActive ? (
                   <p className="fr-hero-offer">
                     <span className="fr-hero-offer-was">R350</span>
                     <strong className="fr-hero-offer-pulse">R229</strong> EACH!!
@@ -5982,7 +6000,7 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
         </div>
         <div className="fr-sdk-cta">
           <a href={href} className="fr-sdk-btn">SHOP HOODIES</a>
-          <div className="fr-sdk-note">Buy 2 For R599 · Ships Nationwide</div>
+          <div className="fr-sdk-note">{BIG_SPRING_SALE_ACTIVE ? "Buy 2 For R549" : "Buy 2 For R599"} · Ships Nationwide</div>
         </div>
       </div>
     </section>
@@ -6166,8 +6184,8 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
       </div>
       <div className="fr-fwm-cta">
         <div className="fr-fwm-buttons">
-          <a href={hoodieHref} className="fr-fwm-btn">SHOP HOODIES<small>2 FOR R699</small></a>
-          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>2 FOR R449</small></a>
+          <a href={hoodieHref} className="fr-fwm-btn">SHOP HOODIES<small>{BIG_SPRING_SALE_ACTIVE ? "2 FOR R599" : "2 FOR R699"}</small></a>
+          <a href={teeHref} className="fr-fwm-btn fr-fwm-btn-outline">SHOP TEES<small>{BIG_SPRING_SALE_ACTIVE ? "2 FOR R399" : "2 FOR R449"}</small></a>
         </div>
         <div className="fr-fwm-note">Winter Only · Ships Nationwide</div>
       </div>
