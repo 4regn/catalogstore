@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { after } from "next/server";
 import { sendEmail } from "./email";
 import { sendOrderPushToSeller } from "./push-notify";
 import { activateSetlaPlanAfterPayment, setlaFirstChargeAmountCents, type SetlaFirstChargeMeta, voidStillbornPayLaterPlan } from "./setla-instalments";
@@ -137,28 +138,44 @@ export async function markUnikOrderPaid(
     await admin.from("unik_designs").update({ status: "paid", saved_at: new Date().toISOString() }).in("id", designIds);
   }
 
-  const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
-  const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>${customArtworkLinksHtml(i)}`).join("");
+  // Seller + customer notifications are a side effect of the order being
+  // paid, not part of the paid transition itself -- some callers (the
+  // Stitch return bridge in particular, app/checkout/stitch-return/route.ts)
+  // need to redirect the customer as fast as possible, and a customer
+  // sitting on a redirect shouldn't wait on 2 email sends + a push
+  // notification completing first. after() (already used the same way
+  // elsewhere in this codebase, e.g. app/api/unik/checkout/create/route.ts)
+  // keeps this serverless invocation alive long enough to actually finish
+  // sending these once the response is already on its way, instead of
+  // making the response wait on them.
+  after(async () => {
+    try {
+      const { data: seller } = await admin.from("sellers").select("email, store_name, logo_url, subdomain").eq("id", order.seller_id).maybeSingle();
+      const itemsHtml = (order.items || []).map((i: any) => `<p style="margin:0 0 4px">${i.name} x${i.qty} — R${Math.round(i.price * i.qty)}</p>${customArtworkLinksHtml(i)}`).join("");
 
-  if (seller?.email) {
-    await sendEmail({
-      seller,
-      to: seller.email,
-      subject: `New paid order — ${order.customer_name}`,
-      html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
-        <h2 style="margin:0 0 12px">New Order — Paid</h2>
-        <p style="margin:0 0 4px"><strong>${order.customer_name}</strong> (${order.customer_email})</p>
-        ${itemsHtml}
-        <p style="margin:12px 0 0;font-size:15px;font-weight:600">Total: R${Math.round(Number(order.total))}</p>
-      </div>`,
-    });
-  }
-  await sendOrderPushToSeller(admin, order.seller_id, {
-    title: `New order — R${Math.round(Number(order.total))}`,
-    body: `${order.customer_name} · ${(order.items || []).length} item${(order.items || []).length === 1 ? "" : "s"}`,
-    url: "/dashboard?tab=orders",
+      if (seller?.email) {
+        await sendEmail({
+          seller,
+          to: seller.email,
+          subject: `New paid order — ${order.customer_name}`,
+          html: `<div style="font-family:-apple-system,sans-serif;max-width:520px;margin:0 auto;color:#111">
+            <h2 style="margin:0 0 12px">New Order — Paid</h2>
+            <p style="margin:0 0 4px"><strong>${order.customer_name}</strong> (${order.customer_email})</p>
+            ${itemsHtml}
+            <p style="margin:12px 0 0;font-size:15px;font-weight:600">Total: R${Math.round(Number(order.total))}</p>
+          </div>`,
+        });
+      }
+      await sendOrderPushToSeller(admin, order.seller_id, {
+        title: `New order — R${Math.round(Number(order.total))}`,
+        body: `${order.customer_name} · ${(order.items || []).length} item${(order.items || []).length === 1 ? "" : "s"}`,
+        url: "/dashboard?tab=orders",
+      });
+      await sendOrderConfirmationEmail(admin, { ...order, id: updated.id, order_number: updated.order_number, external_id: updated.external_id }, seller);
+    } catch (err) {
+      console.error("markUnikOrderPaid: deferred notifications failed", { orderId: order.id, error: err });
+    }
   });
-  await sendOrderConfirmationEmail(admin, { ...order, id: updated.id, order_number: updated.order_number, external_id: updated.external_id }, seller);
 
   return "paid";
 }
