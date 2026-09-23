@@ -5775,13 +5775,30 @@ function withFreeDeliveryThreshold(html: string) {
   return promoSafeHtml.replace(/(<\/p>)/i, '$1\n<p><em>starting from R449</em></p>');
 }
 
+// Feeds the hero headline/note/pill, every PDP description (DescriptionText
+// below), AND the collection-page description (withFreeDeliveryThreshold)
+// -- one function, all three surfaces, since all of them already render
+// through it. Canonicalizes old/messy promo text to the current permanent
+// price first (unchanged, existing behavior), THEN -- only while
+// BIG_SPRING_SALE_ACTIVE -- swaps that canonical "BUY 2 FOR R___!" text to
+// the BIG SPRING SALE price. A single regex+callback pass, not chained
+// .replace() calls, so a printed-hoodie's R699->R599 swap can't then get
+// caught by a DIFFERENT rule's R599->R549 swap meant for standard hoodies.
+// Once BIG_SPRING_SALE_ACTIVE goes false this last step simply doesn't
+// run, so all three surfaces fall back to the normal permanent price on
+// their own -- no follow-up deploy needed to take the sale copy down.
+const BIG_SPRING_SALE_PRICE_BY_PERMANENT_PRICE: Record<string, string> = { "449": "399", "699": "599", "599": "549" };
 function normalizeOversizedTeePromoCopy(text: string) {
-  return text
+  const canonical = text
     .replace(/BUY\s*ANY\s*2\s*OVERSIZED\s*GRAPHIC\s*TEES\s*GET\s*A\s*3RD\s*TEE\s*FREE/gi, "BUY 2 FOR R449!")
     .replace(/BUY\s*2\s*GET\s*1\s*FREE\s*(?:—|-)?\s*3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
     .replace(/BUY\s*2\s*,?\s*GET\s*A?\s*3(?:RD|RD)?\s*TEE\s*FREE!!!?/gi, "BUY 2 FOR R449!")
     .replace(/3\s*TEES\s*FOR\s*R700!!?/gi, "BUY 2 FOR R449!")
     .replace(/R350\s*EACH\s*BUY\s*3\s*FOR\s*2/gi, "BUY 2 FOR R449!");
+  if (!BIG_SPRING_SALE_ACTIVE) return canonical;
+  return canonical.replace(/BUY\s*2\s*FOR\s*R(449|699|599)!/gi, (match, permanentPrice: string) =>
+    `BIG SPRING SALE — BUY 2 FOR R${BIG_SPRING_SALE_PRICE_BY_PERMANENT_PRICE[permanentPrice]}!`
+  );
 }
 
 // Campaign slides only render at card size. Supabase's image-transform
@@ -5934,7 +5951,7 @@ function StandardHoodieDeck({ images, href, interval = 2200 }: { images: string[
         <div className="fr-sdk-head">
           <div className="fr-sdk-eyebrow">Standard Graphic Hoodies</div>
           <h2 className="fr-sdk-title">WEAR THE CULTURE</h2>
-          <div className="fr-sdk-deal">BUY 2 FOR R599</div>
+          <div className="fr-sdk-deal">{BIG_SPRING_SALE_ACTIVE ? "BIG SPRING SALE — BUY 2 FOR R549" : "BUY 2 FOR R599"}</div>
         </div>
         <div className="fr-sdk-stage">
           {order.map((imageIndex, depth) => (
@@ -6116,7 +6133,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
           <div>
             <div className="fr-fwm-rowhead">
               <div className="fr-fwm-rowtitle">HOODIES</div>
-              <span className="fr-fwm-deal">BUY 2 FOR R699<small>MIX ANY 2</small></span>
+              <span className="fr-fwm-deal">{BIG_SPRING_SALE_ACTIVE ? "BIG SPRING SALE — BUY 2 FOR R599" : "BUY 2 FOR R699"}<small>MIX ANY 2</small></span>
             </div>
             <div className="fr-fwm-track">
               <div className="fr-fwm-marquee">
@@ -6133,7 +6150,7 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
           <div>
             <div className="fr-fwm-rowhead">
               <div className="fr-fwm-rowtitle">OVERSIZED PREMIUM TEES</div>
-              <span className="fr-fwm-deal">BUY 2 FOR R449<small>MIX ANY 2</small></span>
+              <span className="fr-fwm-deal">{BIG_SPRING_SALE_ACTIVE ? "BIG SPRING SALE — BUY 2 FOR R399" : "BUY 2 FOR R449"}<small>MIX ANY 2</small></span>
             </div>
             <div className="fr-fwm-track">
               <div className="fr-fwm-marquee reverse">
