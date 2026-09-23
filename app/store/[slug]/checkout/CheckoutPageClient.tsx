@@ -1080,7 +1080,9 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
         : "";
   const shippingProviderAlt = (carrier?: CheckoutShippingOption["carrier"]) =>
     carrier === "aramex" ? "Aramex" : carrier === "courierguy" ? "Courier Guy" : "PAXI";
-  const shippingPriceLabel = (opt?: CheckoutShippingOption) => (opt?.price || 0) === 0 ? "Free" : "R" + opt?.price;
+  const shippingPriceLabel = (opt?: CheckoutShippingOption) => (opt?.price || 0) === 0
+    ? <span style={{ fontWeight: 700, color: "#16a34a" }}>Free</span>
+    : "R" + opt?.price;
   const ShippingPrice = ({ opt, className = "choice-price" }: { opt: CheckoutShippingOption; className?: string }) => {
     const saving = shippingOptionSavings(opt);
     if (saving <= 0) return <div className={className}>{shippingPriceLabel(opt)}</div>;
