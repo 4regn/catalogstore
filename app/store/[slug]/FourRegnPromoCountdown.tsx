@@ -1,21 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FLASH_CAP_END } from "../../../lib/four-regn-flash-cap";
 
 /* 4REGN Flash Weekend Sale -- free trucker cap on orders above R499,
-   valid through 31 August 2026 23:59 SAST. The cutoff below is
-   2026-09-01T00:00:00+02:00 (not 23:59:59) so the sale stays active for
-   the full final minute, matching the ENDS label. Written as a fixed
+   valid through 27 September 2026 23:59 SAST. The cutoff (FLASH_CAP_END,
+   2026-09-28T00:00:00+02:00, not 23:59:59) is imported from
+   lib/four-regn-flash-cap.ts rather than duplicated as its own literal
+   here -- this file used to keep its own separate copy of this date, which
+   is exactly how it silently drifted out of sync with the real cutoff the
+   first time this campaign was reactivated (this component kept showing
+   "ENDS 31 AUG" after the actual promo/state-machine end date had already
+   moved). One shared constant, can't drift again. Written as a fixed
    +02:00 (SAST) instant rather than anything derived from the visitor's
    own timezone -- comparing it against Date.now() (also an absolute
    instant) needs no timezone conversion either way, so a visitor in a
-   different timezone still sees the correct remaining time.
-
-   One-off seasonal promo, deliberately not wired to checkout_config or
-   any seller-configurable field -- same treatment as the Winter Sale
-   marquee/SETLA promo strip elsewhere in this file, hardcoded here and
-   meant to be deleted once the sale ends rather than generalized. */
-const FLASH_SALE_END = new Date("2026-09-01T00:00:00+02:00").getTime();
+   different timezone still sees the correct remaining time. */
+const FLASH_SALE_END = FLASH_CAP_END;
 
 /* null = not yet evaluated on the client. Rendering nothing (not a
    "loading" placeholder, not an "ended" state) until that first client
@@ -65,7 +66,7 @@ export default function FourRegnPromoCountdown({ variant }: { variant: "product"
               </div>
             </div>
           </div>
-          <div className="regn-flash-countdown__end">ENDS<strong>31 AUG &middot; 23:59</strong></div>
+          <div className="regn-flash-countdown__end">ENDS<strong>27 SEP &middot; 23:59</strong></div>
         </div>
         <div className="regn-flash-countdown__timer">
           <div className="regn-flash-countdown__unit"><span className="regn-flash-countdown__number">{pad(days)}</span><span className="regn-flash-countdown__label">Days</span></div>

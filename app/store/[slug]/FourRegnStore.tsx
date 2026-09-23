@@ -21,7 +21,7 @@ import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 // importing it normally still lets Next SSR its first paint.
 import FourRegnHeroSlideshow, { type FourRegnHeroSlide } from "./FourRegnHeroSlideshow";
 import {
-  FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_THRESHOLD,
+  FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_THRESHOLD, FLASH_CAP_END,
   isFlashCapActive, isFlashCapEligibleProduct, computeFlashCapState,
   flashCapAmountAway as flashCapAmountAwayFn, flashCapProgressPct as flashCapProgressPctFn,
 } from "../../../lib/four-regn-flash-cap";
@@ -71,7 +71,10 @@ const BIG_SPRING_SALE_ACTIVE = Date.now() < new Date("2026-10-03T00:00:00+02:00"
 // behavior ever changes in a way that should show it again to someone who
 // already saw an earlier version this session (not needed for a plain
 // image/price swap between campaign runs).
-const FLASH_WEEKEND_POPUP_SESSION_KEY = "regn-flash-weekend-popup-seen-v1";
+// v2: bumped when this slot moved back from the tees sale to the free-cap
+// promo, so a visitor who already dismissed the tees popup this session
+// still sees the cap one.
+const FLASH_WEEKEND_POPUP_SESSION_KEY = "regn-flash-weekend-popup-seen-v2";
 
 // Cart-state-driven, same "nothing worth rendering server-side" reasoning
 // as the two dynamic imports above.
@@ -1546,9 +1549,28 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // same call, just for a different product. Always qty 1, always its own
   // line via the giftTag-aware merge key above, regardless of whether the
   // shopper already has that exact cap/variant in cart as a paid item.
-  const claimFlashCapGift = (product: Product, variants: { [k: string]: string } = {}) => {
+  //
+  // convertPaidLine (only passed true by the "Make This My Free Cap"
+  // button below) additionally decrements/removes the matching PAID line
+  // for this exact product+variant -- without it, converting an already-
+  // paid cap into the free one left both: the paid line untouched AND a
+  // new free line added, so the shopper ended up with two caps (one paid,
+  // one free) for the price of the one they'd already paid for. The
+  // "choose a different cap from the collection page" path must NOT do
+  // this -- a shopper who already has a paid Cap A and claims Cap B as
+  // their free gift should keep both, not lose Cap A.
+  const claimFlashCapGift = (product: Product, variants: { [k: string]: string } = {}, convertPaidLine = false) => {
     const isChange = !!flashCapGiftItem && flashCapGiftItem.product.id !== product.id;
-    setCart((prev) => prev.filter((i) => i.giftTag !== FLASH_CAP_GIFT_TAG));
+    setCart((prev) => {
+      const withoutOldGift = prev.filter((i) => i.giftTag !== FLASH_CAP_GIFT_TAG);
+      if (!convertPaidLine) return withoutOldGift;
+      const paidIdx = withoutOldGift.findIndex((i) => !i.giftTag && i.product.id === product.id && JSON.stringify(i.selectedVariants) === JSON.stringify(variants));
+      if (paidIdx === -1) return withoutOldGift;
+      const paidLine = withoutOldGift[paidIdx];
+      return paidLine.qty > 1
+        ? withoutOldGift.map((i, idx) => (idx === paidIdx ? { ...i, qty: i.qty - 1 } : i))
+        : withoutOldGift.filter((_, idx) => idx !== paidIdx);
+    });
     addToCart(product, 1, variants, FLASH_CAP_GIFT_TAG);
     if (seller?.id) {
       trackStorefrontEvent({
@@ -2330,45 +2352,48 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   // not a per-seller-editable link, since it's platform routing, not brand
   // content.
   const showSetlaBanner = config.show_setla_banner ?? true;
-  // Round 2 of the Oversized Premium Tees flash sale (R229, was R350, buy 2
-  // for R449) -- same slot, same on/off flag, new end date and new
-  // artwork. Hardcoded rather than read from
-  // config.flash_weekend_campaign_image, matching this component's own
-  // "one-off, don't generalize" treatment of flashWeekendEndsAt/
-  // flashWeekendHref just below. flashWeekendImage (the wide banner) is
-  // used below the hero AND is one of the two images the popup can
-  // randomly show (the "Jhené Aiko" wide artwork); flashWeekendPopupOnlyImage
-  // only ever appears in the popup (the "J. Cole" tall artwork).
-  const flashWeekendImage = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/26ed726d-b2f2-4d80-9109-13f2e6f8ddf4/1789016634356-0.png";
-  const flashWeekendPopupOnlyImage = "https://vaqfsiuaoxoggdyggrqp.supabase.co/storage/v1/object/public/product-images/b6d1ed6c-cb6e-4ef8-a1fb-0bf935ee7a5a/26ed726d-b2f2-4d80-9109-13f2e6f8ddf4/1789016634357-1.png";
-  // 12 September 23:59 in South African time (SAST is UTC+2). This mirrors
-  // the server-side checkout guard, so expired sale artwork can never
-  // linger on the homepage after the offer has stopped applying.
-  const flashWeekendEndsAt = Date.parse("2026-09-12T21:59:00.000Z");
+  // Flash Weekend free trucker cap promo, back in its original form --
+  // seller-configurable artwork (config.flash_weekend_campaign_image),
+  // same on/off flag this slot has always used. The tees-sale round that
+  // ran here in between hardcoded its own image URLs directly in this
+  // component instead of reading this field, which is why reactivating
+  // this promo needed a real code change rather than just a config/date
+  // update -- reverted back to the original, more flexible design so that
+  // doesn't happen again next time this slot is reused for something else.
+  const flashWeekendImage = (config as any).flash_weekend_campaign_image || "";
+  // Shares FLASH_CAP_END (lib/four-regn-flash-cap.ts) with the actual
+  // reward state machine/countdown/server checkout guard -- one cutoff,
+  // not a separate copy that can drift out of sync with the promo it's
+  // advertising.
+  const flashWeekendEndsAt = FLASH_CAP_END;
   const showFlashWeekendCampaign = isHomeView && config.show_flash_weekend_campaign === true && flashWeekendImage.startsWith("http") && flashWeekendNow <= flashWeekendEndsAt;
-  const flashWeekendHref = sp(`/collections/${collectionSlug(TEES_SALE_COLLECTION)}`);
+  const flashWeekendHref = sp(`/collections/${collectionSlug(FLASH_CAP_COLLECTION)}`);
 
-  // Opens the flash-sale popup 5s after landing, at most once per browser
-  // session, picking one of the 2 sale images at random. A single one-shot
-  // setTimeout (not a repeating interval), so this can't cause the kind of
-  // whole-page re-render-every-tick issue a ticking value at this level
-  // caused elsewhere in this file -- it fires once, flips two bits of
-  // state, and is done.
+  // Opens the flash-cap popup 5s after landing, at most once per browser
+  // session. A single one-shot setTimeout (not a repeating interval), so
+  // this can't cause the kind of whole-page re-render-every-tick issue a
+  // ticking value at this level caused elsewhere in this file -- it fires
+  // once, flips two bits of state, and is done. Reuses flash_cap_promo_seen/
+  // flash_cap_progress_clicked (metadata.source: "popup") rather than
+  // dedicated popup-specific event types -- the original run of this promo
+  // had no popup analytics at all (added later, only for the tees-sale
+  // round that used this slot in between), and adding new event types
+  // needs a DB check-constraint migration + heartbeat route allow-list
+  // change, not worth it for reusing an existing, already-working slot.
   useEffect(() => {
     if (!showFlashWeekendCampaign) return;
     let alreadySeen = false;
     try { alreadySeen = sessionStorage.getItem(FLASH_WEEKEND_POPUP_SESSION_KEY) === "1"; } catch {}
     if (alreadySeen) return;
     const timer = window.setTimeout(() => {
-      const image = Math.random() < 0.5 ? flashWeekendImage : flashWeekendPopupOnlyImage;
-      setFlashWeekendPopupImage(image);
+      setFlashWeekendPopupImage(flashWeekendImage);
       setFlashWeekendOpen(true);
       try { sessionStorage.setItem(FLASH_WEEKEND_POPUP_SESSION_KEY, "1"); } catch {}
-      if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_popup_seen" });
+      if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_promo_seen", metadata: { source: "popup" } });
     }, 5000);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFlashWeekendCampaign]);
+  }, [showFlashWeekendCampaign, flashWeekendImage]);
   const setlaEyebrow = config.setla_eyebrow ?? `Flexible payments on ${seller.store_name}`;
   const setlaLead = config.setla_lead ?? "Eligible customers can shop with SETLA and split selected purchases into interest-free instalments — with your payment plan shown clearly before you commit.";
   const setlaBadge = config.setla_badge ?? "Interest-free SETLA payment options";
@@ -3946,7 +3971,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     <span className="regn-fcap__text regn-fcap__text--won">Make {flashCapExistingCartCap.product.name} your <strong>FREE</strong> cap?</span>
                   </div>
                   <div className="regn-fcap__row" style={{ marginTop: 8, gap: 8 }}>
-                    <button type="button" className="regn-fcap__cta" onClick={() => claimFlashCapGift(flashCapExistingCartCap.product, flashCapExistingCartCap.selectedVariants)}>Make This My Free Cap</button>
+                    <button type="button" className="regn-fcap__cta" onClick={() => claimFlashCapGift(flashCapExistingCartCap.product, flashCapExistingCartCap.selectedVariants, true)}>Make This My Free Cap</button>
                     <button type="button" className="regn-fcap__link" onClick={() => goToFlashCapPicker("cart")}>Choose another cap</button>
                   </div>
                 </div>
@@ -4366,21 +4391,21 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 
         {showFlashWeekendCampaign && (
           <>
-            <section className="fr-flash-banner" aria-label="Oversized Premium Tees flash sale">
+            <section className="fr-flash-banner" aria-label="Flash Weekend free trucker cap promo">
               <a href={flashWeekendHref}>
-                <img src={flashWeekendImage} alt="Oversized Premium Tees flash sale — R229, was R350. Buy 2 for R449. Shop now." loading="eager" decoding="async" />
+                <img src={flashWeekendImage} alt="Flash Weekend — free trucker cap on orders above R499. Shop now." loading="eager" decoding="async" />
               </a>
             </section>
             {flashWeekendOpen && flashWeekendPopupImage && (
-              <div className="fr-flash-popup-backdrop" role="dialog" aria-modal="true" aria-label="Oversized Premium Tees flash sale">
+              <div className="fr-flash-popup-backdrop" role="dialog" aria-modal="true" aria-label="Flash Weekend free trucker cap promo">
                 <div className="fr-flash-popup">
-                  <button className="fr-flash-popup-close" onClick={() => setFlashWeekendOpen(false)} aria-label="Close sale popup">×</button>
+                  <button className="fr-flash-popup-close" onClick={() => setFlashWeekendOpen(false)} aria-label="Close promo popup">×</button>
                   <a
                     href={flashWeekendHref}
-                    aria-label="Shop Oversized Premium Tees"
-                    onClick={() => { if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_popup_clicked" }); }}
+                    aria-label="Shop Trucker Caps & Beanies"
+                    onClick={() => { if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "flash_cap_progress_clicked", metadata: { source: "popup" } }); }}
                   >
-                    <img src={flashWeekendPopupImage} alt="Oversized Premium Tees flash sale — Shop now." />
+                    <img src={flashWeekendPopupImage} alt="Flash Weekend — free trucker cap on orders above R499. Shop now." />
                   </a>
                 </div>
               </div>

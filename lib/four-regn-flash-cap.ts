@@ -11,7 +11,7 @@
    two absolute instants needs no timezone conversion either way. */
 
 export const FLASH_CAP_THRESHOLD = 499;
-export const FLASH_CAP_END_ISO = "2026-09-01T00:00:00+02:00";
+export const FLASH_CAP_END_ISO = "2026-09-28T00:00:00+02:00"; // ends 27 Sept 23:59 SAST
 export const FLASH_CAP_END = new Date(FLASH_CAP_END_ISO).getTime();
 
 // Same exact collection name used by the countdown banner
