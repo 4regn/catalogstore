@@ -1447,7 +1447,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
                 <>
                   <div className="confirm-icon pending"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
                   <h1>Almost there…</h1>
-                  <p>Thanks {paidOrder.customer_name}. Your order is saved and we're waiting on confirmation from your payment provider &mdash; this page updates automatically the moment it lands, or check your email for the receipt.</p>
+                  <p>Thanks {paidOrder.customer_name}. Your order is saved and we're waiting on confirmation from your payment provider &mdash; this page updates automatically the moment it lands. Don&rsquo;t want to wait? You can try again with a different payment method below &mdash; if your original payment still goes through, we&rsquo;ll confirm it by email either way.</p>
                 </>
               ) : (
                 <>
@@ -1476,7 +1476,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
             </div>
 
             <div className="confirm-actions">
-              {paidOrder._processing && paidOrder._timedOut ? (
+              {paidOrder._processing ? (
                 <button type="button" className="pay-btn" style={{ display: "block", width: "100%" }} onClick={() => { retryFromTimedOutOrder(); }}>Try again</button>
               ) : (
                 <a className="pay-btn" href={sp()} style={{ textDecoration: "none", display: "block" }}>Continue shopping</a>
@@ -1529,7 +1529,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
               ? `Thanks ${paidOrder.customer_name}, your payment wasn't successful. Your order and details are saved -- try again below, or pick a different payment method.`
               : paidOrder._timedOut
               ? `Thanks ${paidOrder.customer_name}, your order is saved but we haven't received confirmation from your payment provider yet. If you completed payment, check your email for the receipt -- otherwise you can try again below.`
-              : `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for confirmation from your payment provider. This page will update automatically, or check your email for the receipt.`)
+              : `Thanks ${paidOrder.customer_name}. Your order is saved and we're waiting for confirmation from your payment provider. This page will update automatically the moment it lands. Don't want to wait? You can try again with a different payment method below -- if your original payment still goes through, we'll confirm it by email either way.`)
             : `Thank you ${paidOrder.customer_name}! Your payment has been received and your order is being processed. You'll receive updates via email.`}</p>
           <div style={{ borderTop: "1px solid " + T.border, paddingTop: 16 }}>
             {(paidOrder.items || []).map((item: any, i: number) => (
@@ -1545,7 +1545,7 @@ export default function CheckoutPageClient({ initialSeller }: { initialSeller: S
           </div>
         </div>
         <div style={{ textAlign: "center" }}>
-          {paidOrder._processing && paidOrder._timedOut ? (
+          {paidOrder._processing ? (
             <button type="button" onClick={() => { retryFromTimedOutOrder(); }} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", border: "none", cursor: "pointer" }}>Try Again</button>
           ) : (
             <a href={sp()} style={{ display: "inline-block", padding: "16px 48px", background: T.btnBg, color: T.btnText, borderRadius: T.btnRadius, fontSize: 13, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", textDecoration: "none" }}>Continue Shopping</a>
