@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
-import { usesCleanStorePaths } from "../../../../lib/store-url";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { getFontPair } from "../../../../lib/font-pairs";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
@@ -350,15 +349,18 @@ const FOUR_REGN_CHECKOUT_CSS = `
 @media(max-width:560px){.fr-checkout-v2 .confirm-main{padding:44px 18px 64px}.fr-checkout-v2 .confirm-hero h1{font-size:27px}}
 `;
 
-export default function CheckoutPageClient({ initialSeller }: { initialSeller: Seller }) {
+export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { initialSeller: Seller; useCleanPaths: boolean }) {
   const params = useParams();
   const slug = params.slug as string;
-  // Entirely client-rendered (no SSR data), so reading window.location here
-  // carries no hydration-mismatch risk.
-  const sp = (suffix: string = "") =>
-    typeof window !== "undefined" && usesCleanStorePaths(window.location.hostname)
-      ? suffix || "/"
-      : `/store/${slug}${suffix}`;
+  // useCleanPaths is resolved server-side (page.tsx, from the real request
+  // host) and passed down as a prop specifically so this never branches on
+  // window.location directly -- it used to, which produced a different
+  // result on the server render (no window, always fell through to the
+  // /store/slug form) than on the client's hydration render (real
+  // window.location.hostname, true for any subdomain/custom-domain store)
+  // -- a guaranteed React hydration mismatch (error #418) on every load for
+  // real checkout traffic, not an edge case.
+  const sp = (suffix: string = "") => (useCleanPaths ? suffix || "/" : `/store/${slug}${suffix}`);
   const [seller, setSeller] = useState<Seller | null>(initialSeller);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sellerProducts, setSellerProducts] = useState<{ id: string; name: string; category: string }[]>([]);

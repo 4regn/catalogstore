@@ -1,6 +1,8 @@
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "../../../../lib/supabase-admin";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../../lib/store-template-access";
+import { usesCleanStorePaths } from "../../../../lib/store-url";
 import StoreUnavailable from "../StoreUnavailable";
 import UnikLabsIframePage from "../_unik/UnikLabsIframePage";
 import CheckoutPageClient from "./CheckoutPageClient";
@@ -16,6 +18,14 @@ const CHECKOUT_SELLER_COLUMNS =
 
 export default async function CheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  // Resolved server-side from the actual request host, not window.location,
+  // so CheckoutPageClient's link-building never branches on anything that
+  // differs between the server render and the client's hydration render --
+  // that was a guaranteed hydration mismatch (React error #418) on every
+  // single load for any subdomain- or custom-domain-hosted store, i.e.
+  // effectively all real checkout traffic.
+  const hostname = ((await headers()).get("host") || "").split(":")[0].toLowerCase();
+  const useCleanPaths = usesCleanStorePaths(hostname);
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
@@ -73,5 +83,5 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
     },
   };
 
-  return <CheckoutPageClient initialSeller={initialSeller} />;
+  return <CheckoutPageClient initialSeller={initialSeller} useCleanPaths={useCleanPaths} />;
 }
