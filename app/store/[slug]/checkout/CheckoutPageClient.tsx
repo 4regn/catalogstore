@@ -1593,8 +1593,14 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
     return (
       <div className="fr-checkout-v2">
         {/* Same visible-scrollbar override as the confirmation screen above
-            -- see that comment for why. */}
-        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18)}::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.32)}`}</style>
+            -- see that comment for why. Also carries that screen's
+            overflow-y:auto!important + -webkit-overflow-scrolling:touch,
+            which this main form render was missing entirely despite the
+            comment claiming parity -- the confirmation screen scrolled
+            fine, this one (what a customer actually spends the most time
+            on, and where the "stuck, can't scroll" reports kept
+            reproducing, mobile Safari especially) didn't reliably. */}
+        <style>{FOUR_REGN_CHECKOUT_CSS + `body,html{background:#fff;margin:0;overflow-y:auto!important;-webkit-overflow-scrolling:touch}::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18)}::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.32)}`}</style>
         <div className="checkout-shell">
           <header className="topbar">
             <div className="topbar-inner">
