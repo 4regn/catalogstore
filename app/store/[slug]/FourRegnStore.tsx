@@ -4300,10 +4300,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 {BIG_SPRING_SALE_ACTIVE ? (
                   <p className="fr-hero-offer">
                     {renderOfferLine("OVERSIZED PREMIUM TEES: BUY 2 FOR R399!", "bss-tees")}
-                    <br />
-                    {renderOfferLine("PRINTED HOODIES: BUY 2 FOR R599!", "bss-printed-hoodies")}
-                    <br />
-                    {renderOfferLine("GRAPHIC HOODIES: BUY 2 FOR R549!", "bss-graphic-hoodies")}
                     <span className="fr-hero-offer-note">Ends 2 October 23:59</span>
                     <span className="fr-hero-offer-note">Discount automatically applied at checkout.</span>
                   </p>
