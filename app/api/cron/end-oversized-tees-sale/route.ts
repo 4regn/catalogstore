@@ -4,22 +4,29 @@ import { revalidateStore } from "../../../actions/revalidate-store";
 
 export const dynamic = "force-dynamic";
 
-// One-off: reverts Oversized Premium Tees pricing back to R350 (no sale)
-// once the flash sale's cutoff has passed. The sale price was set directly
-// via a migration (supabase/migrations/20260910_oversized_tees_flash_sale_r229.sql
-// for this run; 20260830_oversized_tees_flash_sale.sql the first time this
-// campaign ran, at a different price/cutoff), not by this route -- this
-// only ever runs the reverse direction, gated on CUTOFF rather than on
-// today's date, so running it early, late, or more than once a day is
-// always a safe no-op (nothing matches price=SALE_PRICE once it's already
-// been reverted). Reused across repeat runs of this same campaign --
-// just bump CUTOFF/SALE_PRICE here to match whatever the current
-// migration set. The "buy 2 for R449" bundle needs no equivalent cleanup
-// here -- it expires on its own via the discount row's own ends_at.
-const CUTOFF = Date.parse("2026-09-12T21:59:00.000Z"); // 12 Sept 23:59 SAST
-const SALE_PRICE = 229;
-const ORIGINAL_PRICE = 350;
-const COLLECTION = "OVERSIZED PREMIUM TEES";
+// Reverts each BIG SPRING SALE tier's pricing back to normal once the
+// sale's cutoff has passed. Originally this route only ever handled the
+// Oversized Premium Tees flash sale (hence the path); generalized here to
+// a list of tiers since the current campaign runs three collections at
+// once (supabase/migrations/20260923_big_spring_sale.sql), all sharing one
+// cutoff. Gated on CUTOFF rather than today's date, and matched by each
+// tier's own SALE_PRICE rather than today's date, so running this early,
+// late, or more than once a day is always a safe no-op per tier (nothing
+// matches price=SALE_PRICE once that tier's already been reverted).
+// Reused across repeat campaigns -- add/replace tiers here to match
+// whatever the current migration set. The "buy 2 for R___" bundles need no
+// equivalent cleanup here -- each expires on its own via its discount
+// row's own ends_at.
+const CUTOFF = Date.parse("2026-10-02T21:59:00.000Z"); // 2 Oct 23:59 SAST
+const TIERS = [
+  { collection: "OVERSIZED PREMIUM TEES", salePrice: 229, originalPrice: 350 },
+  // Matches both spellings of this tag used across the codebase (see
+  // FourRegnStore.tsx's own getProductPromoBadge) so a product tagged
+  // either way still gets reverted.
+  { collection: "BACK & FRONT PRINTED HOODIES", salePrice: 329, originalPrice: 479 },
+  { collection: "FRONT & BACK PRINTED HOODIES", salePrice: 329, originalPrice: 479 },
+  { collection: "STANDARD GRAPHIC HOODIES", salePrice: 299, originalPrice: 350 },
+];
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -33,23 +40,29 @@ export async function GET(req: NextRequest) {
     const { data: seller } = await admin.from("sellers").select("id").eq("subdomain", "4regn").maybeSingle();
     if (!seller) return NextResponse.json({ status: "ok", reverted: 0, note: "4regn seller not found" });
 
-    const { data: candidates, error: fetchErr } = await admin
-      .from("products")
-      .select("id, category")
-      .eq("seller_id", seller.id)
-      .eq("price", SALE_PRICE);
-    if (fetchErr) throw fetchErr;
+    let reverted = 0;
+    for (const tier of TIERS) {
+      const { data: candidates, error: fetchErr } = await admin
+        .from("products")
+        .select("id, category")
+        .eq("seller_id", seller.id)
+        .eq("price", tier.salePrice);
+      if (fetchErr) throw fetchErr;
 
-    const eligibleIds = (candidates || [])
-      .filter((p: any) => (p.category || "").split(",").map((c: string) => c.trim()).includes(COLLECTION))
-      .map((p: any) => p.id);
-    if (!eligibleIds.length) return NextResponse.json({ status: "ok", reverted: 0 });
+      const eligibleIds = (candidates || [])
+        .filter((p: any) => (p.category || "").split(",").map((c: string) => c.trim()).includes(tier.collection))
+        .map((p: any) => p.id);
+      if (!eligibleIds.length) continue;
 
-    const { error: updateErr } = await admin
-      .from("products")
-      .update({ price: ORIGINAL_PRICE, old_price: null })
-      .in("id", eligibleIds);
-    if (updateErr) throw updateErr;
+      const { error: updateErr } = await admin
+        .from("products")
+        .update({ price: tier.originalPrice, old_price: null })
+        .in("id", eligibleIds);
+      if (updateErr) throw updateErr;
+      reverted += eligibleIds.length;
+    }
+
+    if (!reverted) return NextResponse.json({ status: "ok", reverted: 0 });
 
     // Collection/product pages read products through a persistent,
     // seller-scoped cache (lib/four-regn-catalog-cache.ts, up to a
@@ -61,9 +74,9 @@ export async function GET(req: NextRequest) {
     // dashboard save to show up on the collection grid immediately.
     await revalidateStore("4regn").catch(() => {});
 
-    return NextResponse.json({ status: "ok", reverted: eligibleIds.length });
+    return NextResponse.json({ status: "ok", reverted });
   } catch (error: any) {
-    console.error("End oversized tees sale cron failed", error);
+    console.error("End big spring sale cron failed", error);
     return NextResponse.json({ status: "error", error: error?.message || "Cron failed" }, { status: 500 });
   }
 }

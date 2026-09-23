@@ -57,6 +57,15 @@ const TEES_SALE_COLLECTION = "OVERSIZED PREMIUM TEES";
 // constant (and the hero override copy below) whenever this campaign runs
 // again at a new date/price.
 const TEES_SALE_ANALYTICS_END = new Date("2026-09-13T00:00:00+02:00").getTime();
+// BIG SPRING SALE -- Oversized Premium Tees / Back & Front Printed Hoodies /
+// Standard Graphic Hoodies, through 2 October 2026 23:59 SAST. Matches
+// supabase/migrations/20260923_big_spring_sale.sql (sets the sale prices +
+// discount rows) and the CUTOFF in
+// app/api/cron/end-oversized-tees-sale/route.ts (reverts them) -- bump all
+// three together if this campaign's dates ever change. getProductPromoBadge
+// below reads this to swap each collection's badge back to its permanent
+// price automatically once the sale ends, no follow-up deploy needed.
+const BIG_SPRING_SALE_ACTIVE = Date.now() < new Date("2026-10-03T00:00:00+02:00").getTime();
 // sessionStorage, not localStorage -- "once per session" per the ask, not
 // "once ever on this device". Bump the version suffix if this popup's
 // behavior ever changes in a way that should show it again to someone who
@@ -1317,14 +1326,23 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     // These are 4regn's permanent collection offers. Keep them ahead of
     // imported discount/% badges so the advertised multi-buy deal is the
     // one customers see on both cards and the product page.
+    //
+    // BIG_SPRING_SALE_ACTIVE swaps each label to the lower BIG SPRING SALE
+    // bundle price through the campaign's cutoff (matches
+    // supabase/migrations/20260923_big_spring_sale.sql and the CUTOFF in
+    // app/api/cron/end-oversized-tees-sale/route.ts, which reverts the
+    // underlying product prices/discount rows at the same moment) -- once
+    // BIG_SPRING_SALE_ACTIVE goes false these labels fall back to the
+    // permanent price on their own, no follow-up deploy needed to take the
+    // sale copy down.
     if (categories.includes("BACK & FRONT PRINTED HOODIES") || categories.includes("FRONT & BACK PRINTED HOODIES")) {
-      return { label: "BUY 2 FOR R699", scope: "collection", product_id: null, collection_name: "BACK & FRONT PRINTED HOODIES" };
+      return { label: BIG_SPRING_SALE_ACTIVE ? "BIG SPRING SALE — BUY 2 FOR R599" : "BUY 2 FOR R699", scope: "collection", product_id: null, collection_name: "BACK & FRONT PRINTED HOODIES" };
     }
     if (categories.includes("STANDARD GRAPHIC HOODIES")) {
-      return { label: "BUY 2 FOR R599", scope: "collection", product_id: null, collection_name: "STANDARD GRAPHIC HOODIES" };
+      return { label: BIG_SPRING_SALE_ACTIVE ? "BIG SPRING SALE — BUY 2 FOR R549" : "BUY 2 FOR R599", scope: "collection", product_id: null, collection_name: "STANDARD GRAPHIC HOODIES" };
     }
     if (categories.includes("OVERSIZED PREMIUM TEES")) {
-      return { label: "BUY 2 FOR R449", scope: "collection", product_id: null, collection_name: "OVERSIZED PREMIUM TEES" };
+      return { label: BIG_SPRING_SALE_ACTIVE ? "BIG SPRING SALE — BUY 2 FOR R399" : "BUY 2 FOR R449", scope: "collection", product_id: null, collection_name: "OVERSIZED PREMIUM TEES" };
     }
     return promoBadges.find((b) => (b.scope === "product" && b.product_id === p.id) || (b.scope === "collection" && b.collection_name && pInCat(p, b.collection_name)));
   };
