@@ -21,7 +21,7 @@ import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 // importing it normally still lets Next SSR its first paint.
 import FourRegnHeroSlideshow, { type FourRegnHeroSlide } from "./FourRegnHeroSlideshow";
 import {
-  FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_THRESHOLD, FLASH_CAP_END,
+  FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_ELIGIBLE_COLLECTIONS, FLASH_CAP_THRESHOLD, FLASH_CAP_END,
   isFlashCapActive, isFlashCapEligibleProduct, computeFlashCapState,
   flashCapAmountAway as flashCapAmountAwayFn, flashCapProgressPct as flashCapProgressPctFn,
 } from "../../../lib/four-regn-flash-cap";
@@ -2105,7 +2105,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   }, [flashCapEligibleSubtotal, flashCapActive, cartHydrated]);
 
   const flashCapCollectionHref = sp(`/collections/${collectionSlug(FLASH_CAP_COLLECTION)}`);
-  const flashCapOnTruckerCapsPage = isCollectionView && collectionName === FLASH_CAP_COLLECTION;
+  // Gift-mode cards/banner also apply on the Custom Trucker Caps
+  // collection page, not just the main Trucker Caps & Beanies one -- a
+  // custom cap is just as eligible as a stock one (see
+  // FLASH_CAP_ELIGIBLE_COLLECTIONS).
+  const flashCapOnTruckerCapsPage = isCollectionView && !!collectionName && (FLASH_CAP_ELIGIBLE_COLLECTIONS as readonly string[]).includes(collectionName);
   // "EXISTING CAP" case -- a cap the shopper added normally, before
   // crossing R499, sitting in cart as a full-price line. Offer converting
   // it in place instead of only ever sending them off to pick a fresh one.
@@ -2746,9 +2750,9 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-flash-banner a{display:block}
 .fr-flash-banner img{display:block;width:100%;height:auto;max-height:760px;object-fit:cover;object-position:center}
 .fr-flash-popup-backdrop{position:fixed;inset:0;z-index:100001;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(10,10,10,.58);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
-.fr-flash-popup{position:relative;width:min(92vw,900px);max-height:88vh;background:#fff;box-shadow:0 25px 90px rgba(0,0,0,.42);overflow:hidden;border-radius:4px;line-height:0}
+.fr-flash-popup{position:relative;width:min(90vw,420px);max-height:78vh;background:#fff;box-shadow:0 25px 90px rgba(0,0,0,.42);overflow:hidden;border-radius:4px;line-height:0}
 .fr-flash-popup a{display:block}
-.fr-flash-popup img{display:block;width:100%;height:auto;max-height:88vh;object-fit:contain}
+.fr-flash-popup img{display:block;width:100%;height:auto;max-height:78vh;object-fit:contain}
 .fr-flash-popup-close{position:absolute;z-index:2;top:12px;right:12px;width:36px;height:36px;border:0;border-radius:50%;background:rgba(0,0,0,.78);color:#fff;font-size:27px;line-height:32px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.22)}
 .fr-hero-bgimg{position:absolute;inset:0;z-index:0}
 /* Rotating hero slides (FourRegnHeroSlideshow.tsx) -- stacked absolutely,
@@ -3749,7 +3753,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 @media(max-width:480px){.regn-flash-countdown__inner{border-radius:16px}.regn-flash-countdown__end{font-size:7px}.regn-flash-countdown__end strong{font-size:8px}}
 @media(max-width:768px){.fr-coll-promo-countdown{padding:0 20px 22px}}
 @media(prefers-reduced-motion:reduce){.regn-flash-countdown__inner::before{animation:none}.regn-flash-countdown{animation:none}}
-@media(max-width:640px){.fr-flash-popup-backdrop{padding:12px}.fr-flash-popup{width:100%;max-height:82vh}.fr-flash-popup img{max-height:82vh}.fr-flash-popup-close{top:8px;right:8px;width:32px;height:32px;font-size:24px;line-height:28px}}
+@media(max-width:640px){.fr-flash-popup-backdrop{padding:12px}.fr-flash-popup{width:min(88vw,380px);max-height:68vh}.fr-flash-popup img{max-height:68vh}.fr-flash-popup-close{top:8px;right:8px;width:32px;height:32px;font-size:24px;line-height:28px}}
 
 /* Flash Weekend free trucker cap reward system -- FourRegnFlashCapUI.tsx.
    Same light/chrome-glass/dark-green language as .regn-flash-countdown

@@ -17,8 +17,16 @@ export const FLASH_CAP_END = new Date(FLASH_CAP_END_ISO).getTime();
 // Same exact collection name used by the countdown banner
 // (FourRegnPromoCountdown's caller) and the homepage campaign banner --
 // see FourRegnStore.tsx's own collectionSlug("TRUCKER CAPS & BEANIES")
-// call for the live precedent.
+// call for the live precedent. This is the PRIMARY collection -- the one
+// the "Shop Now"/countdown/banner links actually point to.
 export const FLASH_CAP_COLLECTION = "TRUCKER CAPS & BEANIES";
+
+// Every collection a product can be claimed as the free gift from.
+// FLASH_CAP_COLLECTION stays the one real "go shop" link points to (a
+// link can only point at one collection page), but eligibility itself
+// checks this whole list -- a Custom Trucker Cap qualifies exactly the
+// same as one from the main Trucker Caps & Beanies collection.
+export const FLASH_CAP_ELIGIBLE_COLLECTIONS = [FLASH_CAP_COLLECTION, "CUSTOM TRUCKER CAPS"] as const;
 
 // Cart-line marker. Stored on the storefront CartItem and threaded through
 // the base64 ?cart= checkout payload and place-order request as a plain
@@ -45,7 +53,8 @@ export function isFlashCapActive(now: number = Date.now()): boolean {
 // never touches FourRegnStore.tsx at all.
 export function isFlashCapEligibleProduct(product: { category?: string | null } | null | undefined): boolean {
   if (!product?.category) return false;
-  return product.category.split(",").some((c) => c.trim() === FLASH_CAP_COLLECTION);
+  const tags = product.category.split(",").map((c) => c.trim());
+  return FLASH_CAP_ELIGIBLE_COLLECTIONS.some((collection) => tags.includes(collection));
 }
 
 export function computeFlashCapState(opts: {
