@@ -138,7 +138,7 @@ export async function getContactByEmail(email: string): Promise<ResendSegmentCon
   }
 }
 
-export type ReconcileUnsubscribesResult = { checked: number; corrected: number; segmentsScanned: number; lookedUpIndividually: number; note?: string };
+export type ReconcileUnsubscribesResult = { checked: number; corrected: number; segmentsScanned: number; lookedUpIndividually: number; neverSyncedEmails: string[]; note?: string };
 
 /* Shared by the daily reconciliation cron (app/api/cron/reconcile-resend-unsubscribes)
    and the dashboard "Sync unsubscribes from Resend" button (action "reconcile_unsubscribes"
@@ -166,7 +166,7 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
   for (const row of campaignsRes.data || []) {
     if (row.resend_segment_id) segmentIds.add(row.resend_segment_id);
   }
-  if (!segmentIds.size) return { checked: 0, corrected: 0, segmentsScanned: 0, lookedUpIndividually: 0, note: "No Resend segments found yet -- prepare and send a campaign batch first" };
+  if (!segmentIds.size) return { checked: 0, corrected: 0, segmentsScanned: 0, lookedUpIndividually: 0, neverSyncedEmails: [], note: "No Resend segments found yet -- prepare and send a campaign batch first" };
 
   const resendContactsByEmail = new Map<string, ResendSegmentContact>();
   let segmentsScanned = 0;
@@ -199,14 +199,21 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
     .filter((email) => email && !resendContactsByEmail.has(email));
 
   let lookedUpIndividually = 0;
+  // Emails still unaccounted for after the direct lookup too -- these never
+  // received a Resend contact record at all (404 both ways), so they cannot
+  // have unsubscribed via Resend. Surfaced so a human can eyeball them rather
+  // than assume "not found in a segment" means "unsubscribed".
+  const neverSyncedEmails: string[] = [];
   const LOOKUP_CONCURRENCY = 5;
   for (let index = 0; index < missingEmails.length; index += LOOKUP_CONCURRENCY) {
     const batch = missingEmails.slice(index, index + LOOKUP_CONCURRENCY);
     const results = await Promise.all(batch.map((email) => getContactByEmail(email)));
     lookedUpIndividually += batch.length;
-    for (const contact of results) {
+    batch.forEach((email, i) => {
+      const contact = results[i];
       if (contact?.email) resendContactsByEmail.set(String(contact.email).trim().toLowerCase(), contact);
-    }
+      else neverSyncedEmails.push(email);
+    });
   }
 
   let corrected = 0;
@@ -226,5 +233,43 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
     if (!error) corrected++;
   }
 
-  return { checked: resendContactsByEmail.size, corrected, segmentsScanned, lookedUpIndividually };
+  return { checked: resendContactsByEmail.size, corrected, segmentsScanned, lookedUpIndividually, neverSyncedEmails };
+}
+
+export type EmailDiagnosis = {
+  email: string;
+  localFound: boolean;
+  localAcceptsMarketing: boolean | null;
+  localRowCount: number;
+  resendFound: boolean;
+  resendUnsubscribed: boolean | null;
+};
+
+/* Pinpoints exactly why a specific email isn't being reconciled correctly,
+   instead of guessing again -- checks the local customers row(s) (case-
+   insensitive, and counts duplicates since a customer can have more than
+   one row for the same email) side by side with what Resend's own contact
+   record says right now. Built for spot-checking real examples a seller
+   found by eye in Resend's dashboard (e.g. "Unsubscribed 29d ago") against
+   what reconcileSellerUnsubscribes concluded for them. */
+export async function diagnoseEmails(admin: any, sellerId: string, emails: string[]): Promise<EmailDiagnosis[]> {
+  const results: EmailDiagnosis[] = [];
+  for (const raw of emails) {
+    const email = String(raw || "").trim().toLowerCase();
+    if (!email) continue;
+    const [{ data: localRows }, resendContact] = await Promise.all([
+      admin.from("customers").select("accepts_email_marketing").eq("seller_id", sellerId).ilike("email", email),
+      getContactByEmail(email),
+    ]);
+    const rows: { accepts_email_marketing: boolean }[] = localRows || [];
+    results.push({
+      email,
+      localFound: rows.length > 0,
+      localAcceptsMarketing: rows.length > 0 ? rows.some((r) => r.accepts_email_marketing) : null,
+      localRowCount: rows.length,
+      resendFound: !!resendContact,
+      resendUnsubscribed: resendContact ? resendContact.unsubscribed : null,
+    });
+  }
+  return results;
 }

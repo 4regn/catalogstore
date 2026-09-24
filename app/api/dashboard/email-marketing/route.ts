@@ -7,6 +7,7 @@ import {
   resendMarketingRequest,
   marketingCampaignHtml,
   reconcileSellerUnsubscribes,
+  diagnoseEmails,
 } from "../../../../lib/resend-marketing";
 
 import { getMarketingCampaign } from "../../../../lib/marketing-campaigns";
@@ -194,6 +195,12 @@ export async function POST(req: NextRequest) {
     if (action === "reconcile_unsubscribes") {
       const result = await reconcileSellerUnsubscribes(admin, seller.id);
       return NextResponse.json({ ok: true, ...result });
+    }
+
+    if (action === "diagnose_emails") {
+      const emails = Array.isArray(body.emails) ? body.emails.filter((e: unknown) => typeof e === "string").slice(0, 25) : [];
+      const results = await diagnoseEmails(admin, seller.id, emails);
+      return NextResponse.json({ ok: true, results });
     }
 
     if (action === "test") {

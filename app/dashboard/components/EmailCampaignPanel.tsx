@@ -63,6 +63,9 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const [capacityConfirmation, setCapacityConfirmation] = useState("");
   const [deliveryMode, setDeliveryMode] = useState("send");
   const [scheduleLocal, setScheduleLocal] = useState("");
+  const [neverSyncedEmails, setNeverSyncedEmails] = useState<string[]>([]);
+  const [debugEmailsText, setDebugEmailsText] = useState("thoko.semodi@gmail.com\nngobese.sphe@gmail.com\nmkotwana@gmail.com\npalesakguto50@gmail.com\nchaukestanton@gmail.com");
+  const [debugResults, setDebugResults] = useState<{ email: string; localFound: boolean; localAcceptsMarketing: boolean | null; localRowCount: number; resendFound: boolean; resendUnsubscribed: boolean | null }[] | null>(null);
 
   useEffect(() => { onBusyChange(!!busy); }, [busy, onBusyChange]);
 
@@ -155,7 +158,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   };
 
   const reconcileUnsubscribes = async () => {
-    setBusy("reconcile-unsubscribes"); setError(""); setNotice("");
+    setBusy("reconcile-unsubscribes"); setError(""); setNotice(""); setNeverSyncedEmails([]);
     try {
       const result = await call("reconcile_unsubscribes");
       const scope = `Scanned ${result.segmentsScanned} Resend segment${result.segmentsScanned === 1 ? "" : "s"}${result.lookedUpIndividually ? ` + looked up ${result.lookedUpIndividually.toLocaleString("en-ZA")} contacts directly` : ""}, checked ${result.checked.toLocaleString("en-ZA")} contacts total`;
@@ -164,8 +167,20 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
         : result.corrected > 0
         ? `${scope} — ${result.corrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
         : `${scope} — everything already matches.`);
+      setNeverSyncedEmails(result.neverSyncedEmails || []);
       await load();
     } catch (reconcileError: any) { setError(reconcileError?.message || "Could not sync unsubscribes from Resend."); }
+    finally { setBusy(""); }
+  };
+
+  const diagnoseEmails = async () => {
+    const emails = debugEmailsText.split(/[\n,;\s]+/).map((e) => e.trim()).filter(Boolean);
+    if (!emails.length) return;
+    setBusy("diagnose"); setError(""); setDebugResults(null);
+    try {
+      const result = await call("diagnose_emails", { emails });
+      setDebugResults(result.results || []);
+    } catch (diagnoseError: any) { setError(diagnoseError?.message || "Could not check those emails."); }
     finally { setBusy(""); }
   };
 
@@ -223,6 +238,37 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
 
       {error && <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#f87171", fontSize: 11 }}>{error}</div>}
       {notice && <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.2)", color: "#22c55e", fontSize: 11 }}>{notice}</div>}
+      {neverSyncedEmails.length > 0 && <div style={{ marginTop: 10, padding: 12, borderRadius: 12, background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.24)", color: "#fbbf24", fontSize: 11, lineHeight: 1.6 }}>
+        <strong>{neverSyncedEmails.length} opted-in customer{neverSyncedEmails.length === 1 ? "" : "s"} have no Resend contact record at all</strong> — most likely never synced yet (new signups, or past the 1,000-contact cap), not confirmed unsubscribes. Do not delete these in Resend on this basis alone:
+        <div style={{ marginTop: 6, wordBreak: "break-word", color: "var(--muted)" }}>{neverSyncedEmails.join(", ")}</div>
+      </div>}
+
+      <div style={{ ...innerCard, padding: 18, marginTop: 14 }}>
+        <div style={eyebrow}>Debug · Check specific emails</div>
+        <p style={stepCopy}>Paste emails (one per line) that you've confirmed as "Unsubscribed" in Resend's own dashboard, to see exactly what our local customer row and Resend's contact record say for each.</p>
+        <textarea value={debugEmailsText} onChange={(event) => setDebugEmailsText(event.target.value)} rows={5} style={{ ...inputStyle, width: "100%", fontFamily: "monospace", fontSize: 11 }} />
+        <button disabled={!!busy} onClick={diagnoseEmails} style={{ ...secondaryButton, marginTop: 8 }}>{busy === "diagnose" ? "Checking…" : "Check these emails"}</button>
+        {debugResults && <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
+            <thead><tr style={{ textAlign: "left", color: "var(--muted-2)" }}>
+              <th style={{ padding: "4px 8px" }}>Email</th>
+              <th style={{ padding: "4px 8px" }}>Local row</th>
+              <th style={{ padding: "4px 8px" }}>Local opted in</th>
+              <th style={{ padding: "4px 8px" }}>Resend contact</th>
+              <th style={{ padding: "4px 8px" }}>Resend unsubscribed</th>
+            </tr></thead>
+            <tbody>
+              {debugResults.map((row) => <tr key={row.email} style={{ borderTop: "1px solid var(--border)" }}>
+                <td style={{ padding: "4px 8px" }}>{row.email}</td>
+                <td style={{ padding: "4px 8px" }}>{row.localFound ? `Yes (${row.localRowCount})` : "Not found"}</td>
+                <td style={{ padding: "4px 8px" }}>{row.localAcceptsMarketing === null ? "—" : row.localAcceptsMarketing ? "Yes" : "No"}</td>
+                <td style={{ padding: "4px 8px" }}>{row.resendFound ? "Found" : "Not found (404)"}</td>
+                <td style={{ padding: "4px 8px" }}>{row.resendUnsubscribed === null ? "—" : row.resendUnsubscribed ? "Yes" : "No"}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>}
+      </div>
 
       {overview && <div className="email-pipeline-grid" style={{ display: "grid", gridTemplateColumns: "1.25fr .9fr", gap: 14, marginTop: 18 }}>
         <div style={{ ...innerCard, padding: 18 }}>
