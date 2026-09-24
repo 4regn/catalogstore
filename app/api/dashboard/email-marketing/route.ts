@@ -16,11 +16,13 @@ import { parseMarketingSchedule, todayAtNineSast } from "../../../../lib/marketi
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+// Resend's free Marketing plan allows 1,000 contacts, well over one batch's
+// worth (600) but under the full audience once it grows past ~1,000. Batches
+// are sent one at a time with the seller manually clearing the sent batch's
+// segment in Resend between sends to free capacity, so there is no software-
+// side cap on the total audience -- only on how many contacts a single batch
+// syncs to Resend at once.
 const MAX_BATCH_SIZE = 600;
-// Resend's free Marketing plan allows 1,000 contacts. Keep the campaign
-// audience inside that hard limit so a later batch can never fail halfway
-// through contact syncing after an earlier batch has already been sent.
-const MAX_MARKETING_CONTACTS = 1000;
 
 type Settings = {
   seller_id: string;
@@ -97,7 +99,7 @@ async function allMarketingAudienceContacts(admin: ReturnType<typeof getAdmin>, 
 }
 
 async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  return (await allMarketingAudienceContacts(admin, sellerId)).slice(0, MAX_MARKETING_CONTACTS);
+  return allMarketingAudienceContacts(admin, sellerId);
 }
 
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string, templateKey: string) {
@@ -156,9 +158,8 @@ export async function POST(req: NextRequest) {
         campaignAudienceState(admin, seller.id, template.key),
       ]);
       if (campaignsResult.error) throw campaignsResult.error;
-      const audience = allAudience.slice(0, MAX_MARKETING_CONTACTS);
-      const genericGreetingCount = audience.filter((contact) => !contact.first_name).length;
-      return NextResponse.json({ ok: true, settings, audienceCount: audience.length, planExcludedCount: Math.max(0, allAudience.length - audience.length), genericGreetingCount, remainingCount: audience.filter((contact) => !usedEmails.has(contact.email)).length, campaigns: campaignsResult.data || [], template: template, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE, defaultScheduleLocal: todayAtNineSast() });
+      const genericGreetingCount = allAudience.filter((contact) => !contact.first_name).length;
+      return NextResponse.json({ ok: true, settings, audienceCount: allAudience.length, planExcludedCount: 0, genericGreetingCount, remainingCount: allAudience.filter((contact) => !usedEmails.has(contact.email)).length, campaigns: campaignsResult.data || [], template: template, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE, defaultScheduleLocal: todayAtNineSast() });
     }
 
     if (action === "sync") {
@@ -394,15 +395,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, scheduledAt });
     }
 
-    if (action === "free_contact_capacity") {
-      const allAudience = await allMarketingAudienceContacts(admin, seller.id);
-      const heldContacts = allAudience.slice(MAX_MARKETING_CONTACTS);
-      const confirmation = typeof body.confirmation === "string" ? body.confirmation.trim() : "";
-      if (confirmation !== `REMOVE ${heldContacts.length}`) {
-        return NextResponse.json({ error: `Type REMOVE ${heldContacts.length} to confirm` }, { status: 400 });
-      }
-      if (heldContacts.length === 0) return NextResponse.json({ ok: true, deleted: 0, discardedBatches: 0 });
-
+    // Resend's free Marketing plan allows 1,000 contacts account-wide, well
+    // under a full audience once it grows past that. Rather than capping the
+    // audience in software, each batch (up to MAX_BATCH_SIZE) is sent, then
+    // its Resend segment is released here to free capacity before the next
+    // batch syncs its own contacts -- automates the "go delete the segment
+    // in Resend" step the seller would otherwise do by hand between batches.
+    if (action === "release_sent_segments") {
       // The quota-failed batch was never delivered. Remove its remote draft
       // and private segment first so the replacement batch has a segment slot.
       const { data: failedBatches, error: failedBatchesError } = await admin.from("marketing_email_campaigns")
@@ -443,24 +442,7 @@ export async function POST(req: NextRequest) {
         if (clearSegmentError) throw clearSegmentError;
       }
 
-      // Only the 150 contacts deliberately outside this 1,000-contact
-      // campaign audience are deleted from Resend. Their CatalogStore records
-      // and marketing-consent history remain untouched and can be re-synced later.
-      let deleted = 0;
-      for (let index = 0; index < heldContacts.length; index += 5) {
-        const batch = heldContacts.slice(index, index + 5);
-        const results = await Promise.all(batch.map(async (contact) => {
-          try {
-            await resendMarketingRequest(`/contacts/${encodeURIComponent(contact.email)}`, { method: "DELETE" });
-            return true;
-          } catch (error: any) {
-            if (error?.status === 404) return false;
-            throw error;
-          }
-        }));
-        deleted += results.filter(Boolean).length;
-      }
-      return NextResponse.json({ ok: true, deleted, discardedBatches: (failedBatches || []).length, releasedSegments });
+      return NextResponse.json({ ok: true, discardedBatches: (failedBatches || []).length, releasedSegments });
     }
 
     if (action === "discard") {

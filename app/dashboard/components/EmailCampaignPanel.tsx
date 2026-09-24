@@ -10,6 +10,7 @@ type Campaign = {
   subject: string;
   preview_text: string | null;
   resend_broadcast_id: string | null;
+  resend_segment_id: string | null;
   recipient_count: number;
   status: string;
   sent_at: string | null;
@@ -60,7 +61,6 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const [previewOpen, setPreviewOpen] = useState(false);
   const [prepareProgress, setPrepareProgress] = useState({ current: 0, total: 0 });
   const [confirmation, setConfirmation] = useState("");
-  const [capacityConfirmation, setCapacityConfirmation] = useState("");
   const [deliveryMode, setDeliveryMode] = useState("send");
   const [scheduleLocal, setScheduleLocal] = useState("");
   const [neverSyncedEmails, setNeverSyncedEmails] = useState<string[]>([]);
@@ -211,15 +211,14 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     finally { setBusy(""); }
   };
 
-  const freeResendContactCapacity = async () => {
-    const held = overview?.planExcludedCount || 0;
-    setBusy("free-capacity"); setError(""); setNotice("");
+  const releaseSentSegments = async () => {
+    if (!window.confirm("Release every sent batch's Resend segment for this campaign? This frees Resend capacity for the next batch and doesn't touch delivery history or any customer's consent.")) return;
+    setBusy("release-segments"); setError(""); setNotice("");
     try {
-      const result = await call("free_contact_capacity", { confirmation: capacityConfirmation });
-      setCapacityConfirmation("");
-      setNotice(`${result.deleted.toLocaleString("en-ZA")} held contacts were removed from Resend. Your CatalogStore customer records were not changed.`);
+      const result = await call("release_sent_segments");
+      setNotice(`${result.releasedSegments.toLocaleString("en-ZA")} sent batch segment${result.releasedSegments === 1 ? "" : "s"} released in Resend${result.discardedBatches ? `, ${result.discardedBatches} failed draft${result.discardedBatches === 1 ? "" : "s"} cleaned up` : ""}. Ready for the next batch.`);
       await load();
-    } catch (capacityError: any) { setError(capacityError?.message || "Could not free Resend contact capacity."); }
+    } catch (releaseError: any) { setError(releaseError?.message || "Could not release Resend segments."); }
     finally { setBusy(""); }
   };
 
@@ -240,6 +239,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const latestDraft = overview?.campaigns.find((campaign) => campaign.status === "draft");
   const preparingBatch = overview?.campaigns.find((campaign) => campaign.status === "preparing");
   const unsentBatch = latestDraft || preparingBatch;
+  const releasableSegmentCount = overview?.campaigns.filter((campaign) => campaign.status === "sent" && campaign.resend_segment_id).length || 0;
   const confirmPhrase = `${deliveryMode === "schedule" ? "SCHEDULE" : "SEND"} ${latestDraft?.recipient_count || 0}`;
   let scheduleError = "";
   let scheduleLabel = "";
@@ -310,7 +310,6 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
             <span style={statusPill}>{overview.audienceCount.toLocaleString("en-ZA")} opted-in subscribers eligible</span>
             <span style={{ ...statusPill, color: "#22c55e" }}>{overview.remainingCount.toLocaleString("en-ZA")} available for the next batch</span>
             {overview.genericGreetingCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.genericGreetingCount.toLocaleString("en-ZA")} receive a generic greeting</span>}
-            {overview.planExcludedCount > 0 && <span style={{ ...statusPill, color: "#fbbf24" }}>{overview.planExcludedCount.toLocaleString("en-ZA")} held for the contact limit</span>}
           </div>
         </div>
 
@@ -345,15 +344,11 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
         This campaign is split into batches of up to 575 recipients. Prepared, scheduled and sent batches reserve their subscribers, so the next batch excludes them automatically. {overview.remainingCount.toLocaleString("en-ZA")} subscribers are available for the next batch.
       </div>}
 
-      {!!overview?.planExcludedCount && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(251,191,36,.35)" }}>
+      {releasableSegmentCount > 0 && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(251,191,36,.35)" }}>
         <div style={eyebrow}>Before the next batch</div>
         <div style={{ fontSize: 13, fontWeight: 800 }}>Free Resend contact capacity</div>
-        <p style={stepCopy}>Resend is over its 1,000-contact Free-plan limit. This removes only the {overview.planExcludedCount.toLocaleString("en-ZA")} contacts held out of this campaign from Resend. Your CatalogStore customer records and consent history stay safe.</p>
-        <div style={{ fontSize: 10, color: "var(--muted)", marginBottom: 7 }}>Type <strong style={{ color: "var(--text)" }}>REMOVE {overview.planExcludedCount}</strong> to confirm.</div>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <input value={capacityConfirmation} onChange={(event) => setCapacityConfirmation(event.target.value)} placeholder={`REMOVE ${overview.planExcludedCount}`} style={inputStyle} />
-          <button disabled={!!busy || capacityConfirmation !== `REMOVE ${overview.planExcludedCount}`} onClick={freeResendContactCapacity} style={{ ...primaryButton, background: "#b45309", marginTop: 0, width: "auto" }}>{busy === "free-capacity" ? "Removing from Resend…" : `Remove ${overview.planExcludedCount} from Resend`}</button>
-        </div>
+        <p style={stepCopy}>Resend's free plan allows 1,000 contacts account-wide. {releasableSegmentCount} sent batch{releasableSegmentCount === 1 ? "" : "es"} of this campaign still {releasableSegmentCount === 1 ? "has" : "have"} a Resend segment holding its contacts. Releasing {releasableSegmentCount === 1 ? "it" : "them"} frees that capacity for the next batch — delivery history and every customer's consent stay untouched.</p>
+        <button disabled={!!busy} onClick={releaseSentSegments} style={{ ...primaryButton, background: "#b45309", width: "auto" }}>{busy === "release-segments" ? "Releasing in Resend…" : `Release ${releasableSegmentCount} sent segment${releasableSegmentCount === 1 ? "" : "s"}`}</button>
       </div>}
 
       {overview?.campaigns.filter((campaign) => campaign.status === "failed").map((campaign) => <div key={campaign.id} style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(239,68,68,.35)" }}>
