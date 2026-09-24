@@ -158,11 +158,12 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     setBusy("reconcile-unsubscribes"); setError(""); setNotice("");
     try {
       const result = await call("reconcile_unsubscribes");
+      const scope = `Scanned ${result.segmentsScanned} Resend segment${result.segmentsScanned === 1 ? "" : "s"}${result.lookedUpIndividually ? ` + looked up ${result.lookedUpIndividually.toLocaleString("en-ZA")} contacts directly` : ""}, checked ${result.checked.toLocaleString("en-ZA")} contacts total`;
       setNotice(result.note
         ? result.note
         : result.corrected > 0
-        ? `Scanned ${result.segmentsScanned} Resend segment${result.segmentsScanned === 1 ? "" : "s"}, checked ${result.checked.toLocaleString("en-ZA")} contacts — ${result.corrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
-        : `Scanned ${result.segmentsScanned} Resend segment${result.segmentsScanned === 1 ? "" : "s"}, checked ${result.checked.toLocaleString("en-ZA")} contacts — everything already matches.`);
+        ? `${scope} — ${result.corrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
+        : `${scope} — everything already matches.`);
       await load();
     } catch (reconcileError: any) { setError(reconcileError?.message || "Could not sync unsubscribes from Resend."); }
     finally { setBusy(""); }

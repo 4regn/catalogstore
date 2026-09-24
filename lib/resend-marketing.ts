@@ -122,7 +122,23 @@ export function fourRegnMarketingFrom() {
   return getFourRegnResendFrom();
 }
 
-export type ReconcileUnsubscribesResult = { checked: number; corrected: number; segmentsScanned: number; note?: string };
+/* Single-contact counterpart to the PATCH/DELETE /contacts/{email} calls
+   above -- looks a contact up by email with no segment involved. Used to
+   close the gap segment scanning can't: a batch's segment gets deleted once
+   "Free Resend contact capacity" cleans it up (or a segment reference was
+   never recorded at all), but the underlying Resend contact -- and its
+   unsubscribed flag -- survives that deletion. Returns null on 404 (this
+   email was simply never synced to Resend, so there's nothing to reconcile). */
+export async function getContactByEmail(email: string): Promise<ResendSegmentContact | null> {
+  try {
+    return await resendMarketingRequest<ResendSegmentContact>(`/contacts/${encodeURIComponent(email)}`);
+  } catch (error: any) {
+    if (error?.status === 404) return null;
+    throw error;
+  }
+}
+
+export type ReconcileUnsubscribesResult = { checked: number; corrected: number; segmentsScanned: number; lookedUpIndividually: number; note?: string };
 
 /* Shared by the daily reconciliation cron (app/api/cron/reconcile-resend-unsubscribes)
    and the dashboard "Sync unsubscribes from Resend" button (action "reconcile_unsubscribes"
@@ -150,7 +166,7 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
   for (const row of campaignsRes.data || []) {
     if (row.resend_segment_id) segmentIds.add(row.resend_segment_id);
   }
-  if (!segmentIds.size) return { checked: 0, corrected: 0, segmentsScanned: 0, note: "No Resend segments found yet -- prepare and send a campaign batch first" };
+  if (!segmentIds.size) return { checked: 0, corrected: 0, segmentsScanned: 0, lookedUpIndividually: 0, note: "No Resend segments found yet -- prepare and send a campaign batch first" };
 
   const resendContactsByEmail = new Map<string, ResendSegmentContact>();
   let segmentsScanned = 0;
@@ -171,6 +187,28 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
   const localCustomers: { id: string; email: string; accepts_email_marketing: boolean }[] = localCustomersData || [];
   const localByEmail = new Map(localCustomers.map((c) => [String(c.email || "").trim().toLowerCase(), c]));
 
+  // Segment scanning can miss real contacts (a batch's segment gets deleted by
+  // "Free Resend contact capacity" cleanup once sent, or was never recorded).
+  // For every customer we still believe is opted in but didn't turn up in any
+  // scanned segment, look their contact up directly by email -- this is the
+  // set someone would notice as "still getting emails after unsubscribing",
+  // so it's worth the extra requests even though it's not every customer.
+  const missingEmails = localCustomers
+    .filter((c) => c.accepts_email_marketing)
+    .map((c) => String(c.email || "").trim().toLowerCase())
+    .filter((email) => email && !resendContactsByEmail.has(email));
+
+  let lookedUpIndividually = 0;
+  const LOOKUP_CONCURRENCY = 5;
+  for (let index = 0; index < missingEmails.length; index += LOOKUP_CONCURRENCY) {
+    const batch = missingEmails.slice(index, index + LOOKUP_CONCURRENCY);
+    const results = await Promise.all(batch.map((email) => getContactByEmail(email)));
+    lookedUpIndividually += batch.length;
+    for (const contact of results) {
+      if (contact?.email) resendContactsByEmail.set(String(contact.email).trim().toLowerCase(), contact);
+    }
+  }
+
   let corrected = 0;
   const nowIso = new Date().toISOString();
   for (const contact of resendContactsByEmail.values()) {
@@ -188,5 +226,5 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
     if (!error) corrected++;
   }
 
-  return { checked: resendContactsByEmail.size, corrected, segmentsScanned };
+  return { checked: resendContactsByEmail.size, corrected, segmentsScanned, lookedUpIndividually };
 }
