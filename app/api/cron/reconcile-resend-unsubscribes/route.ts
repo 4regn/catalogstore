@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { reconcileSellerUnsubscribes } from "../../../../lib/resend-marketing";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /* Safety net for exactly the failure that prompted this: the
    contact.updated webhook (app/api/webhooks/resend-marketing) sat disabled
@@ -11,15 +12,16 @@ export const dynamic = "force-dynamic";
    Runs daily (see vercel.json -- Vercel's Hobby plan caps cron jobs at
    once/day; a more frequent schedule fails the ENTIRE deployment, not just
    this route, which is exactly what happened the last time a cron here was
-   scheduled more often than that) and treats Resend's own unsubscribed flag
-   as authoritative, correcting the local row either direction wherever they
-   disagree -- not just the webhook going down again, but any other gap
-   (a failed delivery, a contact added to Resend directly, etc). This
-   doesn't replace the webhook (which is still the fast path -- this cron
-   only catches up once a day), it's what makes the webhook merely
-   "the fast path" rather than "the ONLY path" going forward. The same logic
-   also runs on demand from the dashboard (see
-   app/api/dashboard/reconcile-unsubscribes) via reconcileSellerUnsubscribes. */
+   scheduled more often than that) and looks every opted-in customer's email
+   up directly against Resend (GET /contacts/{email}) -- not just the webhook
+   going down again, but any other gap (a failed delivery, a contact added to
+   Resend directly, etc). This doesn't replace the webhook (which is still
+   the fast path -- this cron only catches up once a day), it's what makes
+   the webhook merely "the fast path" rather than "the ONLY path" going
+   forward. The same logic also runs on demand from the dashboard (the
+   "Sync unsubscribes from Resend" button in the Email Studio panel, action
+   "reconcile_unsubscribes" in app/api/dashboard/email-marketing) via
+   reconcileSellerUnsubscribes. */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers.get("authorization") !== `Bearer ${secret}`) {

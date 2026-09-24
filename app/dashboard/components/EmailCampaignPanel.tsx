@@ -161,10 +161,8 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     setBusy("reconcile-unsubscribes"); setError(""); setNotice(""); setNeverSyncedEmails([]);
     try {
       const result = await call("reconcile_unsubscribes");
-      const scope = `Scanned ${result.segmentsScanned} Resend segment${result.segmentsScanned === 1 ? "" : "s"}${result.lookedUpIndividually ? ` + looked up ${result.lookedUpIndividually.toLocaleString("en-ZA")} contacts directly` : ""}, checked ${result.checked.toLocaleString("en-ZA")} contacts total`;
-      setNotice(result.note
-        ? result.note
-        : result.corrected > 0
+      const scope = `Checked ${result.checked.toLocaleString("en-ZA")} opted-in contacts directly against Resend`;
+      setNotice(result.corrected > 0
         ? `${scope} — ${result.corrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
         : `${scope} — everything already matches.`);
       setNeverSyncedEmails(result.neverSyncedEmails || []);

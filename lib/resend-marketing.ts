@@ -94,30 +94,6 @@ export async function ensureContactInSegment(contact: { email: string; firstName
 
 export type ResendSegmentContact = { id: string; email: string; unsubscribed: boolean };
 
-/* Full contact list for a segment, with each contact's CURRENT unsubscribed
-   status -- the read half of what ensureContactInSegment only ever writes.
-   Paginates via Resend's cursor convention (GET .../contacts, response
-   { object: "list", data: [...], has_more }, next page via
-   ?after=<last item's id>) since a real segment here can hold 1000+
-   contacts, well past a single page. Used by the unsubscribe reconciliation
-   cron to catch anyone the contact.updated webhook missed (e.g. the 25 days
-   it sat disabled in Resend's dashboard before anyone noticed) -- Resend's
-   own unsubscribed flag is authoritative here, not our local guess. */
-export async function listSegmentContacts(segmentId: string): Promise<ResendSegmentContact[]> {
-  const all: ResendSegmentContact[] = [];
-  let after: string | null = null;
-  for (let page = 0; page < 50; page++) {
-    const queryString: string = after ? `?after=${encodeURIComponent(after)}` : "";
-    const response: { data: ResendSegmentContact[]; has_more?: boolean } = await resendMarketingRequest(`/segments/${segmentId}/contacts${queryString}`);
-    const batch: ResendSegmentContact[] = response?.data || [];
-    all.push(...batch);
-    if (!response?.has_more || !batch.length) break;
-    after = batch[batch.length - 1]?.id || null;
-    if (!after) break;
-  }
-  return all;
-}
-
 export function fourRegnMarketingFrom() {
   return getFourRegnResendFrom();
 }
@@ -138,102 +114,51 @@ export async function getContactByEmail(email: string): Promise<ResendSegmentCon
   }
 }
 
-export type ReconcileUnsubscribesResult = { checked: number; corrected: number; segmentsScanned: number; lookedUpIndividually: number; neverSyncedEmails: string[]; note?: string };
+export type ReconcileUnsubscribesResult = { checked: number; corrected: number; neverSyncedEmails: string[] };
 
 /* Shared by the daily reconciliation cron (app/api/cron/reconcile-resend-unsubscribes)
    and the dashboard "Sync unsubscribes from Resend" button (action "reconcile_unsubscribes"
-   in app/api/dashboard/email-marketing) so both trigger the exact same logic -- Resend's
-   own unsubscribed flag is authoritative, corrected onto the local customers row in
-   whichever direction they disagree.
+   in app/api/dashboard/email-marketing) so both trigger the exact same logic.
 
-   There is no single "audience" segment that holds every subscriber: each campaign batch
-   (app/api/dashboard/email-marketing action "create_draft") creates its OWN Resend segment,
-   so real contacts are scattered across every batch's segment_id on marketing_email_campaigns
-   (plus the legacy marketing_email_settings.resend_segment_id, from an unused "sync" action,
-   kept here in case it's ever populated). A contact's unsubscribed flag is a single account-wide
-   attribute in Resend -- segments are just membership groups -- so it doesn't matter which
-   segment a contact is read from, only that every segment that might hold real subscribers
-   gets scanned. A batch's segment can be gone by now (deleted by "Free Resend contact capacity"
-   cleanup), so a 404 on any one segment is skipped rather than failing the whole reconciliation. */
+   This used to discover contacts by paginating GET /segments/{id}/contacts across every
+   batch segment, trusting each entry's unsubscribed field. That field turned out to be
+   unreliable: real customers confirmed "Unsubscribed" in Resend's own dashboard (verified
+   against GET /contacts/{email} via the diagnose_emails debug tool) were coming back as
+   still-subscribed through the segment listing, so reconciliation silently corrected
+   nothing for them. GET /contacts/{email} is the one source that matched Resend's dashboard
+   exactly, so that's now the ONLY source of truth here -- every customer we still believe
+   is opted in gets looked up directly by email instead of relying on any segment listing. */
 export async function reconcileSellerUnsubscribes(admin: any, sellerId: string): Promise<ReconcileUnsubscribesResult> {
-  const [settingsRes, campaignsRes] = await Promise.all([
-    admin.from("marketing_email_settings").select("resend_segment_id").eq("seller_id", sellerId).maybeSingle(),
-    admin.from("marketing_email_campaigns").select("resend_segment_id").eq("seller_id", sellerId).not("resend_segment_id", "is", null),
-  ]);
+  const { data: localCustomersData } = await admin.from("customers")
+    .select("id, email, accepts_email_marketing")
+    .eq("seller_id", sellerId).eq("accepts_email_marketing", true).not("email", "is", null);
+  const localCustomers: { id: string; email: string; accepts_email_marketing: boolean }[] = localCustomersData || [];
+  if (!localCustomers.length) return { checked: 0, corrected: 0, neverSyncedEmails: [] };
 
-  const segmentIds = new Set<string>();
-  if (settingsRes.data?.resend_segment_id) segmentIds.add(settingsRes.data.resend_segment_id);
-  for (const row of campaignsRes.data || []) {
-    if (row.resend_segment_id) segmentIds.add(row.resend_segment_id);
-  }
-  if (!segmentIds.size) return { checked: 0, corrected: 0, segmentsScanned: 0, lookedUpIndividually: 0, neverSyncedEmails: [], note: "No Resend segments found yet -- prepare and send a campaign batch first" };
-
-  const resendContactsByEmail = new Map<string, ResendSegmentContact>();
-  let segmentsScanned = 0;
-  for (const segmentId of segmentIds) {
-    try {
-      const contacts = await listSegmentContacts(segmentId);
-      segmentsScanned++;
-      for (const contact of contacts) {
-        const email = String(contact.email || "").trim().toLowerCase();
-        if (email) resendContactsByEmail.set(email, contact);
-      }
-    } catch (segmentError: any) {
-      if (segmentError?.status !== 404) throw segmentError;
+  let checked = 0;
+  let corrected = 0;
+  // Customers with no Resend contact record at all (404) -- never synced, so
+  // they cannot have unsubscribed via Resend. Surfaced for visibility only.
+  const neverSyncedEmails: string[] = [];
+  const nowIso = new Date().toISOString();
+  const LOOKUP_CONCURRENCY = 8;
+  for (let index = 0; index < localCustomers.length; index += LOOKUP_CONCURRENCY) {
+    const batch = localCustomers.slice(index, index + LOOKUP_CONCURRENCY);
+    const contacts = await Promise.all(batch.map((c) => getContactByEmail(String(c.email).trim().toLowerCase())));
+    checked += batch.length;
+    for (let i = 0; i < batch.length; i++) {
+      const contact = contacts[i];
+      if (!contact) { neverSyncedEmails.push(String(batch[i].email).trim().toLowerCase()); continue; }
+      if (!contact.unsubscribed) continue;
+      const { error } = await admin
+        .from("customers")
+        .update({ accepts_email_marketing: false, marketing_consent_updated_at: nowIso, updated_at: nowIso })
+        .eq("id", batch[i].id);
+      if (!error) corrected++;
     }
   }
 
-  const { data: localCustomersData } = await admin.from("customers").select("id, email, accepts_email_marketing").eq("seller_id", sellerId);
-  const localCustomers: { id: string; email: string; accepts_email_marketing: boolean }[] = localCustomersData || [];
-  const localByEmail = new Map(localCustomers.map((c) => [String(c.email || "").trim().toLowerCase(), c]));
-
-  // Segment scanning can miss real contacts (a batch's segment gets deleted by
-  // "Free Resend contact capacity" cleanup once sent, or was never recorded).
-  // For every customer we still believe is opted in but didn't turn up in any
-  // scanned segment, look their contact up directly by email -- this is the
-  // set someone would notice as "still getting emails after unsubscribing",
-  // so it's worth the extra requests even though it's not every customer.
-  const missingEmails = localCustomers
-    .filter((c) => c.accepts_email_marketing)
-    .map((c) => String(c.email || "").trim().toLowerCase())
-    .filter((email) => email && !resendContactsByEmail.has(email));
-
-  let lookedUpIndividually = 0;
-  // Emails still unaccounted for after the direct lookup too -- these never
-  // received a Resend contact record at all (404 both ways), so they cannot
-  // have unsubscribed via Resend. Surfaced so a human can eyeball them rather
-  // than assume "not found in a segment" means "unsubscribed".
-  const neverSyncedEmails: string[] = [];
-  const LOOKUP_CONCURRENCY = 5;
-  for (let index = 0; index < missingEmails.length; index += LOOKUP_CONCURRENCY) {
-    const batch = missingEmails.slice(index, index + LOOKUP_CONCURRENCY);
-    const results = await Promise.all(batch.map((email) => getContactByEmail(email)));
-    lookedUpIndividually += batch.length;
-    batch.forEach((email, i) => {
-      const contact = results[i];
-      if (contact?.email) resendContactsByEmail.set(String(contact.email).trim().toLowerCase(), contact);
-      else neverSyncedEmails.push(email);
-    });
-  }
-
-  let corrected = 0;
-  const nowIso = new Date().toISOString();
-  for (const contact of resendContactsByEmail.values()) {
-    const email = String(contact.email || "").trim().toLowerCase();
-    if (!email) continue;
-    const local = localByEmail.get(email);
-    if (!local) continue; // Resend contact with no matching local customer row -- nothing to reconcile.
-    const shouldAcceptMarketing = !contact.unsubscribed;
-    if (local.accepts_email_marketing === shouldAcceptMarketing) continue;
-
-    const { error } = await admin
-      .from("customers")
-      .update({ accepts_email_marketing: shouldAcceptMarketing, marketing_consent_updated_at: nowIso, updated_at: nowIso })
-      .eq("id", local.id);
-    if (!error) corrected++;
-  }
-
-  return { checked: resendContactsByEmail.size, corrected, segmentsScanned, lookedUpIndividually, neverSyncedEmails };
+  return { checked, corrected, neverSyncedEmails };
 }
 
 export type EmailDiagnosis = {
