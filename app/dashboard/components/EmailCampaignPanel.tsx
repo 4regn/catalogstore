@@ -154,6 +154,18 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     finally { setBusy(""); }
   };
 
+  const reconcileUnsubscribes = async () => {
+    setBusy("reconcile-unsubscribes"); setError(""); setNotice("");
+    try {
+      const result = await call("reconcile_unsubscribes");
+      setNotice(result.corrected > 0
+        ? `Checked ${result.checked.toLocaleString("en-ZA")} Resend contacts — ${result.corrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
+        : `Checked ${result.checked.toLocaleString("en-ZA")} Resend contacts — everything already matches.`);
+      await load();
+    } catch (reconcileError: any) { setError(reconcileError?.message || "Could not sync unsubscribes from Resend."); }
+    finally { setBusy(""); }
+  };
+
   const freeResendContactCapacity = async () => {
     const held = overview?.planExcludedCount || 0;
     setBusy("free-capacity"); setError(""); setNotice("");
@@ -201,6 +213,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button disabled={!!busy} onClick={() => void load()} style={secondaryButton}>Refresh status</button>
+          <button disabled={!!busy} onClick={reconcileUnsubscribes} style={secondaryButton}>{busy === "reconcile-unsubscribes" ? "Syncing unsubscribes…" : "Sync unsubscribes from Resend"}</button>
           <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
         </div>
       </div>

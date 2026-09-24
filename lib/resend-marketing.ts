@@ -121,3 +121,41 @@ export async function listSegmentContacts(segmentId: string): Promise<ResendSegm
 export function fourRegnMarketingFrom() {
   return getFourRegnResendFrom();
 }
+
+export type ReconcileUnsubscribesResult = { checked: number; corrected: number; note?: string };
+
+/* Shared by the daily reconciliation cron (app/api/cron/reconcile-resend-unsubscribes)
+   and the dashboard "sync now" button (app/api/dashboard/reconcile-unsubscribes) so
+   both trigger the exact same logic -- Resend's own unsubscribed flag is authoritative,
+   corrected onto the local customers row in whichever direction they disagree. */
+export async function reconcileSellerUnsubscribes(admin: any, sellerId: string): Promise<ReconcileUnsubscribesResult> {
+  const { data: settings } = await admin.from("marketing_email_settings").select("resend_segment_id").eq("seller_id", sellerId).maybeSingle();
+  if (!settings?.resend_segment_id) return { checked: 0, corrected: 0, note: "No Resend segment configured yet" };
+
+  const [resendContacts, localCustomersRes] = await Promise.all([
+    listSegmentContacts(settings.resend_segment_id),
+    admin.from("customers").select("id, email, accepts_email_marketing").eq("seller_id", sellerId),
+  ]);
+
+  const localCustomers: { id: string; email: string; accepts_email_marketing: boolean }[] = localCustomersRes.data || [];
+  const localByEmail = new Map(localCustomers.map((c) => [String(c.email || "").trim().toLowerCase(), c]));
+
+  let corrected = 0;
+  const nowIso = new Date().toISOString();
+  for (const contact of resendContacts) {
+    const email = String(contact.email || "").trim().toLowerCase();
+    if (!email) continue;
+    const local = localByEmail.get(email);
+    if (!local) continue; // Resend contact with no matching local customer row -- nothing to reconcile.
+    const shouldAcceptMarketing = !contact.unsubscribed;
+    if (local.accepts_email_marketing === shouldAcceptMarketing) continue;
+
+    const { error } = await admin
+      .from("customers")
+      .update({ accepts_email_marketing: shouldAcceptMarketing, marketing_consent_updated_at: nowIso, updated_at: nowIso })
+      .eq("id", local.id);
+    if (!error) corrected++;
+  }
+
+  return { checked: resendContacts.length, corrected };
+}

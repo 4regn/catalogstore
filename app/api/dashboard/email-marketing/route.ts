@@ -6,6 +6,7 @@ import {
   fourRegnMarketingFrom,
   resendMarketingRequest,
   marketingCampaignHtml,
+  reconcileSellerUnsubscribes,
 } from "../../../../lib/resend-marketing";
 
 import { getMarketingCampaign } from "../../../../lib/marketing-campaigns";
@@ -183,6 +184,16 @@ export async function POST(req: NextRequest) {
         await admin.from("marketing_email_settings").update({ synced_contact_count: total - failures.length, last_synced_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("seller_id", seller.id);
       }
       return NextResponse.json({ ok: failures.length === 0, synced, failed: failures.length, errors: failures.slice(0, 3), offset: nextOffset, total, complete });
+    }
+
+    // "sync" above pushes local subscribers INTO Resend. This is the reverse
+    // direction: pull Resend's own unsubscribed flag back onto the local
+    // customers row, so a contact who clicked unsubscribe from any campaign
+    // (or was suppressed directly in Resend) is excluded from this and every
+    // future campaign here without waiting for the daily reconciliation cron.
+    if (action === "reconcile_unsubscribes") {
+      const result = await reconcileSellerUnsubscribes(admin, seller.id);
+      return NextResponse.json({ ok: true, ...result });
     }
 
     if (action === "test") {
