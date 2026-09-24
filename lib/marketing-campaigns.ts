@@ -25,7 +25,7 @@ export const BIG_SPRING_SALE_CAMPAIGN = {
   key: "4regn-big-spring-sale-2026-09",
   name: "4REGN BIG SPRING SALE",
   subject: "🛍️ BIG SPRING SALE!! Tees from R229 · Hoodies from R299 — Buy 2 & Save",
-  previewText: "Oversized Premium Tees, Printed Hoodies & Graphic Hoodies all discounted. Buy 2 and save even more. Ends 2 October.",
+  previewText: "Oversized Premium Tees, Printed Hoodies & Graphic Hoodies all discounted. Buy 2 and save even more. Plus a free trucker cap on orders above R499. Ends 2 October.",
   previewUrl: "/email/4regn-big-spring-sale-2026-09.html",
 };
 
