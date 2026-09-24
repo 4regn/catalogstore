@@ -114,11 +114,19 @@ export async function getContactByEmail(email: string): Promise<ResendSegmentCon
   }
 }
 
-export type ReconcileUnsubscribesResult = { checked: number; corrected: number; neverSyncedEmails: string[] };
+export type ReconcileChunkResult = { checked: number; corrected: number; neverSyncedEmails: string[]; nextCursor: string | null; complete: boolean };
 
-/* Shared by the daily reconciliation cron (app/api/cron/reconcile-resend-unsubscribes)
-   and the dashboard "Sync unsubscribes from Resend" button (action "reconcile_unsubscribes"
-   in app/api/dashboard/email-marketing) so both trigger the exact same logic.
+const RECONCILE_CHUNK_SIZE = 150;
+const RECONCILE_CONCURRENCY = 5;
+// Resend enforces 10 requests/second account-wide. 5-wide batches at least
+// 650ms apart stay comfortably under that (~7.7 req/s) even with jitter.
+const RECONCILE_BATCH_INTERVAL_MS = 650;
+
+/* Shared by the daily reconciliation cron (app/api/cron/reconcile-resend-unsubscribes,
+   which loops chunks itself within its own time budget) and the dashboard
+   "Sync unsubscribes from Resend" button (action "reconcile_unsubscribes" in
+   app/api/dashboard/email-marketing, which loops chunks the same way create_draft/
+   prepare_draft already do for campaign batches) so both trigger the exact same logic.
 
    This used to discover contacts by paginating GET /segments/{id}/contacts across every
    batch segment, trusting each entry's unsubscribed field. That field turned out to be
@@ -127,13 +135,24 @@ export type ReconcileUnsubscribesResult = { checked: number; corrected: number; 
    still-subscribed through the segment listing, so reconciliation silently corrected
    nothing for them. GET /contacts/{email} is the one source that matched Resend's dashboard
    exactly, so that's now the ONLY source of truth here -- every customer we still believe
-   is opted in gets looked up directly by email instead of relying on any segment listing. */
-export async function reconcileSellerUnsubscribes(admin: any, sellerId: string): Promise<ReconcileUnsubscribesResult> {
-  const { data: localCustomersData } = await admin.from("customers")
+   is opted in gets looked up directly by email instead of relying on any segment listing.
+
+   That also means one request per customer, which a large audience can't do in a single
+   call without tripping Resend's 10 req/s limit (checking ~1,150 at once did exactly that)
+   or Vercel's function duration limit. So this processes one bounded, rate-limited chunk
+   at a time via keyset pagination (id cursor, not offset -- an offset would drift as
+   corrections remove rows from the accepts_email_marketing=true filter mid-scan, silently
+   skipping whoever the shift pushed past the page boundary). Callers loop chunk to chunk
+   until `complete`. */
+export async function reconcileSellerUnsubscribes(admin: any, sellerId: string, afterId: string | null = null): Promise<ReconcileChunkResult> {
+  let query = admin.from("customers")
     .select("id, email, accepts_email_marketing")
-    .eq("seller_id", sellerId).eq("accepts_email_marketing", true).not("email", "is", null);
-  const localCustomers: { id: string; email: string; accepts_email_marketing: boolean }[] = localCustomersData || [];
-  if (!localCustomers.length) return { checked: 0, corrected: 0, neverSyncedEmails: [] };
+    .eq("seller_id", sellerId).eq("accepts_email_marketing", true).not("email", "is", null)
+    .order("id", { ascending: true })
+    .limit(RECONCILE_CHUNK_SIZE);
+  if (afterId) query = query.gt("id", afterId);
+  const { data } = await query;
+  const localCustomers: { id: string; email: string; accepts_email_marketing: boolean }[] = data || [];
 
   let checked = 0;
   let corrected = 0;
@@ -141,9 +160,9 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
   // they cannot have unsubscribed via Resend. Surfaced for visibility only.
   const neverSyncedEmails: string[] = [];
   const nowIso = new Date().toISOString();
-  const LOOKUP_CONCURRENCY = 8;
-  for (let index = 0; index < localCustomers.length; index += LOOKUP_CONCURRENCY) {
-    const batch = localCustomers.slice(index, index + LOOKUP_CONCURRENCY);
+  for (let index = 0; index < localCustomers.length; index += RECONCILE_CONCURRENCY) {
+    const batchStart = Date.now();
+    const batch = localCustomers.slice(index, index + RECONCILE_CONCURRENCY);
     const contacts = await Promise.all(batch.map((c) => getContactByEmail(String(c.email).trim().toLowerCase())));
     checked += batch.length;
     for (let i = 0; i < batch.length; i++) {
@@ -156,9 +175,20 @@ export async function reconcileSellerUnsubscribes(admin: any, sellerId: string):
         .eq("id", batch[i].id);
       if (!error) corrected++;
     }
+    const isLastBatch = index + RECONCILE_CONCURRENCY >= localCustomers.length;
+    const elapsed = Date.now() - batchStart;
+    if (!isLastBatch && elapsed < RECONCILE_BATCH_INTERVAL_MS) {
+      await new Promise((resolve) => setTimeout(resolve, RECONCILE_BATCH_INTERVAL_MS - elapsed));
+    }
   }
 
-  return { checked, corrected, neverSyncedEmails };
+  return {
+    checked,
+    corrected,
+    neverSyncedEmails,
+    nextCursor: localCustomers.length ? localCustomers[localCustomers.length - 1].id : afterId,
+    complete: localCustomers.length < RECONCILE_CHUNK_SIZE,
+  };
 }
 
 export type EmailDiagnosis = {

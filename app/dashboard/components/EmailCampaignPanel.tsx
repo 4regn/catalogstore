@@ -159,13 +159,28 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
 
   const reconcileUnsubscribes = async () => {
     setBusy("reconcile-unsubscribes"); setError(""); setNotice(""); setNeverSyncedEmails([]);
+    let cursor: string | null = null;
+    let totalChecked = 0;
+    let totalCorrected = 0;
+    const allNeverSynced: string[] = [];
     try {
-      const result = await call("reconcile_unsubscribes");
-      const scope = `Checked ${result.checked.toLocaleString("en-ZA")} opted-in contacts directly against Resend`;
-      setNotice(result.corrected > 0
-        ? `${scope} — ${result.corrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
-        : `${scope} — everything already matches.`);
-      setNeverSyncedEmails(result.neverSyncedEmails || []);
+      // Resend allows 10 requests/second, so this checks one contact per
+      // request in rate-limit-paced chunks server-side (see
+      // reconcileSellerUnsubscribes) -- loop chunks the same way batch
+      // preparation already does above, showing running progress as it goes.
+      while (true) {
+        const result = await call("reconcile_unsubscribes", cursor ? { after_cursor: cursor } : {});
+        totalChecked += result.checked;
+        totalCorrected += result.corrected;
+        allNeverSynced.push(...(result.neverSyncedEmails || []));
+        setNotice(`Checked ${totalChecked.toLocaleString("en-ZA")} opted-in contacts so far — ${totalCorrected.toLocaleString("en-ZA")} corrected. ${result.complete ? "" : "Still going…"}`);
+        cursor = result.nextCursor;
+        if (result.complete) break;
+      }
+      setNotice(totalCorrected > 0
+        ? `Checked ${totalChecked.toLocaleString("en-ZA")} opted-in contacts directly against Resend — ${totalCorrected.toLocaleString("en-ZA")} were out of sync and are now corrected. They'll be excluded from the next batch automatically.`
+        : `Checked ${totalChecked.toLocaleString("en-ZA")} opted-in contacts directly against Resend — everything already matches.`);
+      setNeverSyncedEmails(allNeverSynced);
       await load();
     } catch (reconcileError: any) { setError(reconcileError?.message || "Could not sync unsubscribes from Resend."); }
     finally { setBusy(""); }

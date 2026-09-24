@@ -194,7 +194,8 @@ export async function POST(req: NextRequest) {
     // (or was suppressed directly in Resend) is excluded from this and every
     // future campaign here without waiting for the daily reconciliation cron.
     if (action === "reconcile_unsubscribes") {
-      const result = await reconcileSellerUnsubscribes(admin, seller.id);
+      const afterId = typeof body.after_cursor === "string" ? body.after_cursor : null;
+      const result = await reconcileSellerUnsubscribes(admin, seller.id, afterId);
       return NextResponse.json({ ok: true, ...result });
     }
 

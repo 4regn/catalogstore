@@ -33,8 +33,29 @@ export async function GET(req: NextRequest) {
     const { data: seller } = await admin.from("sellers").select("id").eq("subdomain", "4regn").maybeSingle();
     if (!seller) return NextResponse.json({ status: "ok", checked: 0, corrected: 0, note: "4regn seller not found" });
 
-    const result = await reconcileSellerUnsubscribes(admin, seller.id);
-    return NextResponse.json({ status: "ok", ...result });
+    // Each chunk is rate-limit-paced and can't be parallelised, so loop chunks
+    // here rather than doing one unbounded pass -- stop with margin before the
+    // function's own duration limit rather than let a slow chunk get killed
+    // mid-write. A run that doesn't reach `complete` just resumes from the
+    // front of the opted-in list on tomorrow's run; the manual "remove from
+    // opt-in list" tool and the webhook cover anything urgent in the meantime.
+    const deadline = Date.now() + 50000;
+    let cursor: string | null = null;
+    let checked = 0;
+    let corrected = 0;
+    let neverSyncedCount = 0;
+    let complete = false;
+    while (Date.now() < deadline) {
+      const chunk = await reconcileSellerUnsubscribes(admin, seller.id, cursor);
+      checked += chunk.checked;
+      corrected += chunk.corrected;
+      neverSyncedCount += chunk.neverSyncedEmails.length;
+      cursor = chunk.nextCursor;
+      complete = chunk.complete;
+      if (complete) break;
+    }
+
+    return NextResponse.json({ status: "ok", checked, corrected, neverSyncedCount, complete });
   } catch (error: any) {
     console.error("Resend unsubscribe reconciliation failed", error);
     return NextResponse.json({ status: "error", error: error?.message || "Reconciliation failed" }, { status: 500 });
