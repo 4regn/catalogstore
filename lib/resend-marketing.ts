@@ -92,6 +92,32 @@ export async function ensureContactInSegment(contact: { email: string; firstName
   return "updated" as const;
 }
 
+export type ResendSegmentContact = { id: string; email: string; unsubscribed: boolean };
+
+/* Full contact list for a segment, with each contact's CURRENT unsubscribed
+   status -- the read half of what ensureContactInSegment only ever writes.
+   Paginates via Resend's cursor convention (GET .../contacts, response
+   { object: "list", data: [...], has_more }, next page via
+   ?after=<last item's id>) since a real segment here can hold 1000+
+   contacts, well past a single page. Used by the unsubscribe reconciliation
+   cron to catch anyone the contact.updated webhook missed (e.g. the 25 days
+   it sat disabled in Resend's dashboard before anyone noticed) -- Resend's
+   own unsubscribed flag is authoritative here, not our local guess. */
+export async function listSegmentContacts(segmentId: string): Promise<ResendSegmentContact[]> {
+  const all: ResendSegmentContact[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < 50; page++) {
+    const queryString: string = after ? `?after=${encodeURIComponent(after)}` : "";
+    const response: { data: ResendSegmentContact[]; has_more?: boolean } = await resendMarketingRequest(`/segments/${segmentId}/contacts${queryString}`);
+    const batch: ResendSegmentContact[] = response?.data || [];
+    all.push(...batch);
+    if (!response?.has_more || !batch.length) break;
+    after = batch[batch.length - 1]?.id || null;
+    if (!after) break;
+  }
+  return all;
+}
+
 export function fourRegnMarketingFrom() {
   return getFourRegnResendFrom();
 }
