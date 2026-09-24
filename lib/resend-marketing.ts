@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { getFourRegnResendFrom } from "./email";
 
-import { SETLA_PAY_LATER_CAMPAIGN, getMarketingCampaign } from "./marketing-campaigns";
+import { SETLA_PAY_LATER_CAMPAIGN, BIG_SPRING_SALE_CAMPAIGN, BIG_SPRING_SALE_REMINDER_CAMPAIGN, getMarketingCampaign } from "./marketing-campaigns";
 export { SETLA_PAY_LATER_CAMPAIGN } from "./marketing-campaigns";
 
 export async function marketingCampaignHtml(key: string) {
@@ -11,6 +11,9 @@ export async function marketingCampaignHtml(key: string) {
   // Literal paths ensure both templates are included in the server deployment.
   if (campaign.key === SETLA_PAY_LATER_CAMPAIGN.key) {
     return readFile(path.join(process.cwd(), "public", "email", "4regn-setla-pay-later-2026.html"), "utf8");
+  }
+  if (campaign.key === BIG_SPRING_SALE_CAMPAIGN.key || campaign.key === BIG_SPRING_SALE_REMINDER_CAMPAIGN.key) {
+    return readFile(path.join(process.cwd(), "public", "email", "4regn-big-spring-sale-2026-09.html"), "utf8");
   }
   return readFile(path.join(process.cwd(), "public", "email", "4regn-r229-flash-sale-2026-09.html"), "utf8");
 }
