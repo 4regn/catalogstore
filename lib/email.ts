@@ -50,7 +50,17 @@ export async function sendEmail({
   // A caller-supplied key is authoritative (SETLA has its own Resend
   // account). Otherwise 4REGN uses its dedicated account and sender while
   // every other seller remains on the CatalogStore account.
-  const isFourRegn = !apiKey && seller?.subdomain === "4regn";
+  //
+  // FOUR_REGN_RESEND_ACCOUNT_SUSPENDED is a manual kill switch for exactly
+  // what happened 2026-09-24: Resend suspended 4REGN's account pending an
+  // account review (triggered by the contact-churn pattern from working
+  // around the free plan's 1,000-contact cap for marketing broadcasts).
+  // Transactional mail -- order notifications, login codes -- has nothing to
+  // do with that review and shouldn't sit broken while it's pending, so
+  // setting this env var to "true" falls every 4REGN send back to the
+  // shared CatalogStore account/sender until the review clears and it's
+  // unset again.
+  const isFourRegn = !apiKey && seller?.subdomain === "4regn" && process.env.FOUR_REGN_RESEND_ACCOUNT_SUSPENDED !== "true";
   const resendKey = apiKey || (isFourRegn ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY);
   const resolvedFrom = isFourRegn
     ? getFourRegnResendFrom()

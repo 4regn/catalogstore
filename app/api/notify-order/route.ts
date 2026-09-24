@@ -23,14 +23,20 @@ export async function POST(req: NextRequest) {
     if (!seller) return NextResponse.json({ error: "Seller not found" }, { status: 404 });
 
     const isFourRegn = seller.subdomain === "4regn";
+    // Kept separate from isFourRegn -- see lib/email.ts for why: order
+    // reference formatting, tracking links, and 4REGN-specific email
+    // content should stay exactly as they are, only which Resend account
+    // actually sends the email should change while the account review
+    // (2026-09-24) is pending.
+    const useFourRegnResendAccount = isFourRegn && process.env.FOUR_REGN_RESEND_ACCOUNT_SUSPENDED !== "true";
     const displayOrderNumber = isFourRegn ? fourRegnOrderReference(order) : `#${order.order_number}`;
 
     const items = (order.items || []).map((i: any) => `${i.name} x${i.qty} — R${(i.price * i.qty).toFixed(0)}${i.variant ? " (" + i.variant + ")" : ""}`).join("\n");
     const orderSummary = `New Order ${displayOrderNumber}\n\nCustomer: ${order.customer_name}\nEmail: ${order.customer_email || "N/A"}\nPhone: ${order.customer_phone || "N/A"}\n\nItems:\n${items}\n\nShipping: R${order.shipping_cost || 0}\nTotal: R${order.total}\n\nPayment: ${order.payment_method?.toUpperCase() || "N/A"}\nFulfillment: ${order.fulfillment_method || "delivery"}${order.shipping_address ? "\nAddress: " + order.shipping_address.address + ", " + order.shipping_address.city + ", " + order.shipping_address.province : ""}`;
 
     // 1. Send email notification via Resend (if API key exists)
-    const resendKey = isFourRegn ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY;
-    const resendFrom = isFourRegn
+    const resendKey = useFourRegnResendAccount ? process.env.FOUR_REGN_RESEND_API_KEY : process.env.RESEND_API_KEY;
+    const resendFrom = useFourRegnResendAccount
       ? getFourRegnResendFrom()
       : (process.env.RESEND_FROM_EMAIL || "CatalogStore <orders@catalogstore.co.za>");
     if (resendKey && seller.email) {
