@@ -212,13 +212,39 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   };
 
   const releaseSentSegments = async () => {
-    if (!window.confirm("Release every sent batch's Resend segment for this campaign? This frees Resend capacity for the next batch and doesn't touch delivery history or any customer's consent.")) return;
+    if (!window.confirm("Delete every sent batch's Resend contacts and segment for this campaign? This frees Resend's 1,000-contact capacity for the next batch. It doesn't touch delivery history, but it does erase Resend's own memory of who unsubscribed from that batch -- unsubscribes will first be synced to your local records so future batches still exclude them correctly.")) return;
     setBusy("release-segments"); setError(""); setNotice("");
     try {
-      const result = await call("release_sent_segments");
-      setNotice(`${result.releasedSegments.toLocaleString("en-ZA")} sent batch segment${result.releasedSegments === 1 ? "" : "s"} released in Resend${result.discardedBatches ? `, ${result.discardedBatches} failed draft${result.discardedBatches === 1 ? "" : "s"} cleaned up` : ""}. Ready for the next batch.`);
+      // Deleting a Resend contact erases Resend's own unsubscribe record for
+      // them, so make sure any unsubscribe from the batch(es) about to be
+      // deleted has already landed in customers.accepts_email_marketing --
+      // that local flag is what actually gates future batches, not Resend.
+      let cursor: string | null = null;
+      while (true) {
+        const syncResult = await call("reconcile_unsubscribes", cursor ? { after_cursor: cursor } : {});
+        cursor = syncResult.nextCursor;
+        setNotice("Syncing unsubscribes from Resend first, so nobody gets re-added by mistake…");
+        if (syncResult.complete) break;
+      }
+
+      let recipientCursor: string | null = null;
+      let totalContactsDeleted = 0;
+      let totalReleasedSegments = 0;
+      let totalDiscardedBatches = 0;
+      while (true) {
+        const result = await call("release_sent_segments", recipientCursor ? { after_recipient_cursor: recipientCursor } : {});
+        totalContactsDeleted += result.contactsDeleted || 0;
+        totalReleasedSegments += result.releasedSegments || 0;
+        totalDiscardedBatches += result.discardedBatches || 0;
+        recipientCursor = result.nextRecipientCursor;
+        setNotice(`Deleted ${totalContactsDeleted.toLocaleString("en-ZA")} contacts, released ${totalReleasedSegments} segment${totalReleasedSegments === 1 ? "" : "s"} so far… ${result.complete ? "" : "Still going…"}`);
+        if (result.complete) break;
+      }
+      setNotice(totalReleasedSegments > 0
+        ? `Deleted ${totalContactsDeleted.toLocaleString("en-ZA")} Resend contacts and released ${totalReleasedSegments.toLocaleString("en-ZA")} sent segment${totalReleasedSegments === 1 ? "" : "s"}${totalDiscardedBatches ? `, ${totalDiscardedBatches} failed draft${totalDiscardedBatches === 1 ? "" : "s"} cleaned up` : ""}. Ready for the next batch.`
+        : "No sent batches with a Resend segment to release.");
       await load();
-    } catch (releaseError: any) { setError(releaseError?.message || "Could not release Resend segments."); }
+    } catch (releaseError: any) { setError(releaseError?.message || "Could not release Resend contacts and segments."); }
     finally { setBusy(""); }
   };
 
@@ -347,8 +373,8 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
       {releasableSegmentCount > 0 && <div style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(251,191,36,.35)" }}>
         <div style={eyebrow}>Before the next batch</div>
         <div style={{ fontSize: 13, fontWeight: 800 }}>Free Resend contact capacity</div>
-        <p style={stepCopy}>Resend's free plan allows 1,000 contacts account-wide. {releasableSegmentCount} sent batch{releasableSegmentCount === 1 ? "" : "es"} of this campaign still {releasableSegmentCount === 1 ? "has" : "have"} a Resend segment holding its contacts. Releasing {releasableSegmentCount === 1 ? "it" : "them"} frees that capacity for the next batch — delivery history and every customer's consent stay untouched.</p>
-        <button disabled={!!busy} onClick={releaseSentSegments} style={{ ...primaryButton, background: "#b45309", width: "auto" }}>{busy === "release-segments" ? "Releasing in Resend…" : `Release ${releasableSegmentCount} sent segment${releasableSegmentCount === 1 ? "" : "s"}`}</button>
+        <p style={stepCopy}>Resend's free plan allows 1,000 contacts account-wide. {releasableSegmentCount} sent batch{releasableSegmentCount === 1 ? "" : "es"} of this campaign still {releasableSegmentCount === 1 ? "has" : "have"} its recipients as Resend contacts. This first syncs any unsubscribes from {releasableSegmentCount === 1 ? "that batch" : "those batches"} to your local records, then deletes {releasableSegmentCount === 1 ? "its" : "their"} Resend contacts and segment to free real capacity for the next batch. Delivery history and every customer's local opt-in status stay untouched.</p>
+        <button disabled={!!busy} onClick={releaseSentSegments} style={{ ...primaryButton, background: "#b45309", width: "auto" }}>{busy === "release-segments" ? "Working…" : `Release ${releasableSegmentCount} sent batch${releasableSegmentCount === 1 ? "" : "es"}`}</button>
       </div>}
 
       {overview?.campaigns.filter((campaign) => campaign.status === "failed").map((campaign) => <div key={campaign.id} style={{ ...innerCard, padding: 18, marginTop: 14, borderColor: "rgba(239,68,68,.35)" }}>

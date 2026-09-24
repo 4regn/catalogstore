@@ -398,51 +398,103 @@ export async function POST(req: NextRequest) {
     // Resend's free Marketing plan allows 1,000 contacts account-wide, well
     // under a full audience once it grows past that. Rather than capping the
     // audience in software, each batch (up to MAX_BATCH_SIZE) is sent, then
-    // its Resend segment is released here to free capacity before the next
-    // batch syncs its own contacts -- automates the "go delete the segment
-    // in Resend" step the seller would otherwise do by hand between batches.
+    // that batch's recipients are deleted as Resend contacts here to free
+    // real capacity before the next batch syncs its own -- automates the
+    // manual "go clear it out in Resend" step between batches. Deleting the
+    // segment alone (an earlier version of this) only removes the grouping,
+    // not the contacts themselves, so it never actually freed the 1,000 cap.
+    //
+    // IMPORTANT: deleting a Resend contact also erases Resend's own memory of
+    // whether that person unsubscribed. The seller should run "Sync
+    // unsubscribes from Resend" right before this, so any unsubscribe from
+    // this batch is captured in customers.accepts_email_marketing first --
+    // that local flag is what actually gates who gets synced into a future
+    // batch, so as long as it's current, this is safe.
+    //
+    // Deleting up to MAX_BATCH_SIZE (600) contacts one at a time to respect
+    // Resend's 10 req/s limit takes longer than one request should run, so
+    // this processes one paced, keyset-paginated chunk of recipients per
+    // call (same pattern as reconcileSellerUnsubscribes) for the oldest sent
+    // batch still holding a segment, and the caller loops until `complete`.
     if (action === "release_sent_segments") {
-      // The quota-failed batch was never delivered. Remove its remote draft
-      // and private segment first so the replacement batch has a segment slot.
-      const { data: failedBatches, error: failedBatchesError } = await admin.from("marketing_email_campaigns")
-        .select("id, resend_broadcast_id, resend_segment_id")
-        .eq("seller_id", seller.id).eq("template_key", template.key).eq("status", "failed");
-      if (failedBatchesError) throw failedBatchesError;
-      for (const batch of failedBatches || []) {
-        if (batch.resend_broadcast_id) {
-          try { await resendMarketingRequest(`/broadcasts/${batch.resend_broadcast_id}`, { method: "DELETE" }); }
-          catch (error: any) { if (error?.status !== 404) throw error; }
+      const afterRecipientId = typeof body.after_recipient_cursor === "string" ? body.after_recipient_cursor : null;
+
+      if (!afterRecipientId) {
+        // Quota-failed batches were never delivered; clean them up once, on
+        // the first call of a fresh run only (a cursor means we're mid-batch).
+        const { data: failedBatches, error: failedBatchesError } = await admin.from("marketing_email_campaigns")
+          .select("id, resend_broadcast_id, resend_segment_id")
+          .eq("seller_id", seller.id).eq("template_key", template.key).eq("status", "failed");
+        if (failedBatchesError) throw failedBatchesError;
+        for (const batch of failedBatches || []) {
+          if (batch.resend_broadcast_id) {
+            try { await resendMarketingRequest(`/broadcasts/${batch.resend_broadcast_id}`, { method: "DELETE" }); }
+            catch (error: any) { if (error?.status !== 404) throw error; }
+          }
+          if (batch.resend_segment_id) {
+            try { await resendMarketingRequest(`/segments/${batch.resend_segment_id}`, { method: "DELETE" }); }
+            catch (error: any) { if (error?.status !== 404) throw error; }
+          }
+          const { error: deleteBatchError } = await admin.from("marketing_email_campaigns").delete().eq("id", batch.id).eq("seller_id", seller.id);
+          if (deleteBatchError) throw deleteBatchError;
         }
-        if (batch.resend_segment_id) {
-          try { await resendMarketingRequest(`/segments/${batch.resend_segment_id}`, { method: "DELETE" }); }
-          catch (error: any) { if (error?.status !== 404) throw error; }
-        }
-        const { error: deleteBatchError } = await admin.from("marketing_email_campaigns").delete().eq("id", batch.id).eq("seller_id", seller.id);
-        if (deleteBatchError) throw deleteBatchError;
       }
 
-      // A broadcast that is already sent no longer needs its private segment.
-      // Releasing it does not alter delivery, analytics, or the historical
-      // broadcast; it only gives the Free plan a segment slot for Batch 2.
       const { data: sentBatches, error: sentBatchesError } = await admin.from("marketing_email_campaigns")
         .select("id, resend_segment_id")
         .eq("seller_id", seller.id).eq("template_key", template.key).eq("status", "sent")
-        .not("resend_segment_id", "is", null);
+        .not("resend_segment_id", "is", null)
+        .order("created_at", { ascending: true });
       if (sentBatchesError) throw sentBatchesError;
-      let releasedSegments = 0;
-      for (const batch of sentBatches || []) {
-        try {
-          await resendMarketingRequest(`/segments/${batch.resend_segment_id}`, { method: "DELETE" });
-          releasedSegments += 1;
-        } catch (error: any) {
-          if (error?.status !== 404) throw error;
+      if (!sentBatches?.length) return NextResponse.json({ ok: true, complete: true, contactsDeleted: 0, releasedSegments: 0 });
+
+      const currentBatch = sentBatches[0];
+      let recipientsQuery = admin.from("marketing_email_campaign_recipients")
+        .select("id, email").eq("campaign_id", currentBatch.id).order("id", { ascending: true }).limit(150);
+      if (afterRecipientId) recipientsQuery = recipientsQuery.gt("id", afterRecipientId);
+      const { data: recipients, error: recipientsError } = await recipientsQuery;
+      if (recipientsError) throw recipientsError;
+
+      let contactsDeleted = 0;
+      const RELEASE_CONCURRENCY = 5;
+      const RELEASE_BATCH_INTERVAL_MS = 650; // stay under Resend's 10 req/s limit
+      for (let index = 0; index < (recipients || []).length; index += RELEASE_CONCURRENCY) {
+        const batchStart = Date.now();
+        const chunk = recipients!.slice(index, index + RELEASE_CONCURRENCY);
+        const results = await Promise.all(chunk.map(async (recipient) => {
+          try {
+            await resendMarketingRequest(`/contacts/${encodeURIComponent(recipient.email)}`, { method: "DELETE" });
+            return true;
+          } catch (error: any) {
+            if (error?.status === 404) return true; // already gone -- fine
+            throw error;
+          }
+        }));
+        contactsDeleted += results.filter(Boolean).length;
+        const isLast = index + RELEASE_CONCURRENCY >= (recipients || []).length;
+        const elapsed = Date.now() - batchStart;
+        if (!isLast && elapsed < RELEASE_BATCH_INTERVAL_MS) {
+          await new Promise((resolve) => setTimeout(resolve, RELEASE_BATCH_INTERVAL_MS - elapsed));
         }
-        const { error: clearSegmentError } = await admin.from("marketing_email_campaigns")
-          .update({ resend_segment_id: null, updated_at: new Date().toISOString() }).eq("id", batch.id).eq("seller_id", seller.id);
-        if (clearSegmentError) throw clearSegmentError;
       }
 
-      return NextResponse.json({ ok: true, discardedBatches: (failedBatches || []).length, releasedSegments });
+      const batchFullyProcessed = (recipients?.length || 0) < 150;
+      if (!batchFullyProcessed) {
+        const nextCursor = recipients![recipients!.length - 1].id;
+        return NextResponse.json({ ok: true, complete: false, contactsDeleted, releasedSegments: 0, nextRecipientCursor: nextCursor });
+      }
+
+      // Every recipient for this batch is gone -- safe to release the segment.
+      try {
+        await resendMarketingRequest(`/segments/${currentBatch.resend_segment_id}`, { method: "DELETE" });
+      } catch (error: any) {
+        if (error?.status !== 404) throw error;
+      }
+      const { error: clearSegmentError } = await admin.from("marketing_email_campaigns")
+        .update({ resend_segment_id: null, updated_at: new Date().toISOString() }).eq("id", currentBatch.id).eq("seller_id", seller.id);
+      if (clearSegmentError) throw clearSegmentError;
+
+      return NextResponse.json({ ok: true, complete: sentBatches.length <= 1, contactsDeleted, releasedSegments: 1, nextRecipientCursor: null });
     }
 
     if (action === "discard") {
