@@ -198,3 +198,26 @@ export async function diagnoseEmails(admin: any, sellerId: string, emails: strin
   }
   return results;
 }
+
+/* Manual override for a seller who has confirmed specific emails as
+   unsubscribed by eye in Resend's own dashboard and wants them excluded
+   from the next batch right away, without waiting on API-based
+   reconciliation. Pure local write -- no Resend calls, so no rate limit
+   concerns. Matches case-insensitively and updates every row for that
+   email (a customer can have more than one row from duplicate imports/
+   guest checkouts, and every one of them feeds the campaign audience query). */
+export async function manuallyUnsubscribeEmails(admin: any, sellerId: string, emails: string[]): Promise<{ matched: number; updated: number }> {
+  const nowIso = new Date().toISOString();
+  let matched = 0;
+  let updated = 0;
+  for (const raw of emails) {
+    const email = String(raw || "").trim().toLowerCase();
+    if (!email) continue;
+    const { data, error } = await admin.from("customers")
+      .update({ accepts_email_marketing: false, marketing_consent_updated_at: nowIso, updated_at: nowIso })
+      .eq("seller_id", sellerId).ilike("email", email)
+      .select("id");
+    if (!error) { matched++; updated += data?.length || 0; }
+  }
+  return { matched, updated };
+}

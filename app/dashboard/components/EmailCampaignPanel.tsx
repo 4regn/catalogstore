@@ -182,6 +182,20 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     finally { setBusy(""); }
   };
 
+  const manualUnsubscribe = async () => {
+    const emails = debugEmailsText.split(/[\n,;\s]+/).map((e) => e.trim()).filter(Boolean);
+    if (!emails.length) return;
+    if (!window.confirm(`Mark ${emails.length} email${emails.length === 1 ? "" : "s"} as opted out locally? They'll be excluded from every future campaign batch immediately. This does not touch Resend.`)) return;
+    setBusy("manual-unsubscribe"); setError(""); setNotice("");
+    try {
+      const result = await call("manual_unsubscribe", { emails });
+      setNotice(`${result.matched.toLocaleString("en-ZA")} of ${emails.length} emails matched a customer record — ${result.updated.toLocaleString("en-ZA")} row${result.updated === 1 ? "" : "s"} updated to opted out.`);
+      setDebugResults(null);
+      await load();
+    } catch (manualError: any) { setError(manualError?.message || "Could not remove those emails from the opt-in list."); }
+    finally { setBusy(""); }
+  };
+
   const freeResendContactCapacity = async () => {
     const held = overview?.planExcludedCount || 0;
     setBusy("free-capacity"); setError(""); setNotice("");
@@ -242,10 +256,13 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
       </div>}
 
       <div style={{ ...innerCard, padding: 18, marginTop: 14 }}>
-        <div style={eyebrow}>Debug · Check specific emails</div>
-        <p style={stepCopy}>Paste emails (one per line) that you've confirmed as "Unsubscribed" in Resend's own dashboard, to see exactly what our local customer row and Resend's contact record say for each.</p>
+        <div style={eyebrow}>Manually check or remove specific emails</div>
+        <p style={stepCopy}>Paste emails (one per line) you've confirmed as "Unsubscribed" in Resend's own dashboard. Check shows what our records and Resend's say side by side; Remove opts them out locally right away, without touching Resend, so they're excluded from the next batch immediately.</p>
         <textarea value={debugEmailsText} onChange={(event) => setDebugEmailsText(event.target.value)} rows={5} style={{ ...inputStyle, width: "100%", fontFamily: "monospace", fontSize: 11 }} />
-        <button disabled={!!busy} onClick={diagnoseEmails} style={{ ...secondaryButton, marginTop: 8 }}>{busy === "diagnose" ? "Checking…" : "Check these emails"}</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <button disabled={!!busy} onClick={diagnoseEmails} style={secondaryButton}>{busy === "diagnose" ? "Checking…" : "Check these emails"}</button>
+          <button disabled={!!busy} onClick={manualUnsubscribe} style={{ ...primaryButton, background: "#b45309", marginTop: 0, width: "auto" }}>{busy === "manual-unsubscribe" ? "Removing…" : "Remove from opt-in list"}</button>
+        </div>
         {debugResults && <div style={{ marginTop: 12, overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10.5 }}>
             <thead><tr style={{ textAlign: "left", color: "var(--muted-2)" }}>
