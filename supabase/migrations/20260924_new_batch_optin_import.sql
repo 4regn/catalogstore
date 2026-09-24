@@ -1,10 +1,12 @@
--- Bulk opt-in import: 2514 contacts supplied by the seller as a new
+-- Bulk opt-in import: 2509 contacts supplied by the seller as a new
 -- batch of consented email opt-ins, kept separate from the existing customer
 -- audience via the 'new-batch-optin-2026-09' tag so it can be identified, queried, or targeted
 -- on its own rather than getting mixed into the pre-existing ~1,145-strong
 -- audience. Additive only: an email that already exists as a customer just
 -- gets the tag appended and accepts_email_marketing confirmed true, nothing
 -- about their existing record (order history, other tags, etc.) is touched.
+-- Any row referencing "payflex" (email or name) was deliberately excluded
+-- at the seller's request.
 insert into public.customers (
   seller_id, email, first_name, last_name, accepts_email_marketing,
   marketing_consent_updated_at, tags, total_orders, source, created_at, updated_at
@@ -496,7 +498,6 @@ from (values
   ('ynomeva@gmail.com', 'Yibanathi', 'Nomeva ❤️💁🏽‍♀️', 1),
   ('nandinompumelelo0212@icloud.com', 'Nandi', 'Lindiwe Nompumelelo Mabaso', NULL),
   ('nqobilesthendwalane@gmail.com', 'Nqobile', 'Ndwalane', NULL),
-  ('caroline@payflex.co.za', 'Caroline', 'Carey', NULL),
   ('modisejunior260@gmail.com', 'Junior', 'Modise', 1),
   ('mukhetwarevival@gmail.com', 'Revival', 'Mukhetwa', 1),
   ('caroline@test.co.za', 'Caroline', 'Carey', NULL),
@@ -548,7 +549,6 @@ from (values
   ('khanyyachris764@gmail.com', 'Khanyya', 'Chris', NULL),
   ('info@gmail.com', 'N', 'M', NULL),
   ('nt.moloi2@gmail.com', 'Nyakallo', 'Thabang Moloi', NULL),
-  ('payflextest23@gmail.com', 'Shaun', 'Olsen', NULL),
   ('ongeziwenkonki@gmail.com', 'Ongeziwe', 'Vokovi', NULL),
   ('prejetbusisiwe37@gmail.com', 'Busisiwe', 'Prejet', NULL),
   ('kgothatsoaries1@gmail.com', 'Kgothatso', 'MAFUMA', NULL),
@@ -602,7 +602,6 @@ from (values
   ('siphelotengwa@gmail.com', 'Siphelo', 'Tengwa', NULL),
   ('sanqoziqubu@icloud.com', 'Sanqoba', 'Ziqubu', NULL),
   ('vernonkock54@gmail.com', 'vernon', 'kock', NULL),
-  ('payflextesttim+pn@gmail.com', 'Lerato', 'Masilo', NULL),
   ('katk15630@gmail.com', 'Sanele', 'Katleho', NULL),
   ('keamaripane77@gmail.com', 'Kearabetswe', 'Mlambo', 1),
   ('mathumbunangamso20@gmail.com', 'Nangamso', 'Mathumbu', 1),
@@ -1318,7 +1317,6 @@ from (values
   ('mlwilkenson@gmail.com', 'Miriam', 'Wilkenson', 2),
   ('chulu1709@gmail.com', 'Chulumanco', 'Ngceba', NULL),
   ('andilehlangu28@gmail.com', 'Andile', 'Mahlangu', 1),
-  ('eunice@payflex.co.za', 'Payflex', 'Site Test', NULL),
   ('ntsikamabaso499@gmail.com', 'Helder', 'Mathe', NULL),
   ('zukilemaziko1@gmail.com', 'Zukile', 'Maziko', NULL),
   ('moyanasifiso@outlook.com', 'Terence', 'Moyana', NULL),
@@ -2466,7 +2464,6 @@ from (values
   ('lennakalaote@gmail.com', 'Letsema', 'Kalaote', NULL),
   ('tumeloraseala1@icloud.com', NULL, NULL, NULL),
   ('loyisonimrodmanzana@gmail.com', 'Loyiso', 'Nimrod Manzana-Johnson', 1),
-  ('tshegofatso@payflex.com', 'Lerato', 'Masilo', NULL),
   ('smaifadi00@gmail.com', NULL, NULL, NULL),
   ('richardaugust518@gmail.com', 'Richard', 'August', 1),
   ('kerapetsemaite@gmail.com', 'Kerapetsemaite', 'Molapo', NULL),
