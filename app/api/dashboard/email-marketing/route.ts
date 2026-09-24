@@ -63,8 +63,8 @@ async function ensureSegment(admin: ReturnType<typeof getAdmin>, sellerId: strin
   return data as Settings;
 }
 
-async function audienceCount(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  return (await marketingAudienceContacts(admin, sellerId)).length;
+async function audienceCount(admin: ReturnType<typeof getAdmin>, sellerId: string, audienceTag?: string | null) {
+  return (await marketingAudienceContacts(admin, sellerId, audienceTag)).length;
 }
 
 async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>) {
@@ -80,10 +80,20 @@ async function allRows<T>(loadPage: (from: number, to: number) => PromiseLike<{ 
 
 type AudienceContact = { id: string; email: string; first_name: string | null; last_name: string | null };
 
-async function allMarketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  const rows = await allRows<{ id: string; email: string; first_name: string | null; last_name: string | null }>((from, to) => admin.from("customers")
-    .select("id, email, first_name, last_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
-    .not("email", "is", null).order("id", { ascending: true }).range(from, to));
+// audienceTag scopes the audience to customers carrying that tag (e.g. a
+// distinct imported batch like 'new-batch-optin-2026-09') instead of every
+// opted-in customer -- lets a campaign be sent to just that group without
+// mixing it into the main list, while campaignAudienceState still excludes
+// anyone already used for this template regardless of which audience scope
+// they were selected under.
+async function allMarketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string, audienceTag?: string | null) {
+  const rows = await allRows<{ id: string; email: string; first_name: string | null; last_name: string | null }>((from, to) => {
+    let query = admin.from("customers")
+      .select("id, email, first_name, last_name").eq("seller_id", sellerId).eq("accepts_email_marketing", true)
+      .not("email", "is", null);
+    if (audienceTag) query = query.contains("tags", [audienceTag]);
+    return query.order("id", { ascending: true }).range(from, to);
+  });
   const contactsByEmail = new Map<string, AudienceContact>();
   for (const contact of rows) {
     const email = contact.email?.trim().toLowerCase();
@@ -98,8 +108,16 @@ async function allMarketingAudienceContacts(admin: ReturnType<typeof getAdmin>, 
   return [...contactsByEmail.values()].sort((a, b) => Number(!!b.first_name) - Number(!!a.first_name));
 }
 
-async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string) {
-  return allMarketingAudienceContacts(admin, sellerId);
+async function marketingAudienceContacts(admin: ReturnType<typeof getAdmin>, sellerId: string, audienceTag?: string | null) {
+  return allMarketingAudienceContacts(admin, sellerId, audienceTag);
+}
+
+async function availableAudienceTags(admin: ReturnType<typeof getAdmin>, sellerId: string) {
+  const rows = await allRows<{ tags: string[] | null }>((from, to) => admin.from("customers")
+    .select("tags").eq("seller_id", sellerId).eq("accepts_email_marketing", true).range(from, to));
+  const tags = new Set<string>();
+  for (const row of rows) for (const tag of row.tags || []) tags.add(tag);
+  return [...tags].sort();
 }
 
 async function campaignAudienceState(admin: ReturnType<typeof getAdmin>, sellerId: string, templateKey: string) {
@@ -146,27 +164,29 @@ export async function POST(req: NextRequest) {
     const { admin, seller } = await authenticate(accessToken);
     const template = getMarketingCampaign(typeof body.template_key === "string" ? body.template_key : SETLA_PAY_LATER_CAMPAIGN.key);
     if (!template) return NextResponse.json({ error: "Unknown email campaign" }, { status: 400 });
+    const audienceTag = typeof body.audience_tag === "string" && body.audience_tag.trim() ? body.audience_tag.trim() : null;
 
     if (action === "overview") {
       await refreshScheduledBatches(admin, seller.id, template.key);
-      const [settings, allAudience, campaignsResult, usedEmails] = await Promise.all([
+      const [settings, allAudience, campaignsResult, usedEmails, availableTags] = await Promise.all([
         getSettings(admin, seller.id),
-        allMarketingAudienceContacts(admin, seller.id),
+        allMarketingAudienceContacts(admin, seller.id, audienceTag),
         admin.from("marketing_email_campaigns")
           .select("id, name, subject, preview_text, resend_broadcast_id, resend_segment_id, batch_number, recipient_count, status, scheduled_at, sent_at, last_error, created_at")
           .eq("seller_id", seller.id).eq("template_key", template.key).order("created_at", { ascending: false }).limit(20),
         campaignAudienceState(admin, seller.id, template.key),
+        availableAudienceTags(admin, seller.id),
       ]);
       if (campaignsResult.error) throw campaignsResult.error;
       const genericGreetingCount = allAudience.filter((contact) => !contact.first_name).length;
-      return NextResponse.json({ ok: true, settings, audienceCount: allAudience.length, planExcludedCount: 0, genericGreetingCount, remainingCount: allAudience.filter((contact) => !usedEmails.has(contact.email)).length, campaigns: campaignsResult.data || [], template: template, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE, defaultScheduleLocal: todayAtNineSast() });
+      return NextResponse.json({ ok: true, settings, audienceTag, availableTags, audienceCount: allAudience.length, planExcludedCount: 0, genericGreetingCount, remainingCount: allAudience.filter((contact) => !usedEmails.has(contact.email)).length, campaigns: campaignsResult.data || [], template: template, sellerEmail: seller.email, maxBatchSize: MAX_BATCH_SIZE, defaultScheduleLocal: todayAtNineSast() });
     }
 
     if (action === "sync") {
       const settings = await ensureSegment(admin, seller.id);
       const offset = Math.max(0, Math.floor(Number(body.offset) || 0));
       const batchSize = 12;
-      const audience = await marketingAudienceContacts(admin, seller.id);
+      const audience = await marketingAudienceContacts(admin, seller.id, audienceTag);
       const contacts = audience.slice(offset, offset + batchSize);
 
       let synced = 0;
@@ -180,7 +200,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const total = await audienceCount(admin, seller.id);
+      const total = await audienceCount(admin, seller.id, audienceTag);
       const nextOffset = offset + contacts.length;
       const complete = nextOffset >= audience.length;
       if (complete) {
@@ -234,7 +254,7 @@ export async function POST(req: NextRequest) {
       if (existingOpen.data) return NextResponse.json({ error: "Finish the existing prepared batch before creating another one." }, { status: 409 });
 
       const [contacts, usedEmails] = await Promise.all([
-        marketingAudienceContacts(admin, seller.id),
+        marketingAudienceContacts(admin, seller.id, audienceTag),
         campaignAudienceState(admin, seller.id, template.key),
       ]);
       const selected = contacts.filter((contact) => !usedEmails.has(contact.email.trim().toLowerCase())).slice(0, limit);

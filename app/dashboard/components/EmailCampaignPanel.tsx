@@ -28,6 +28,8 @@ type Overview = {
   maxBatchSize: number;
   defaultScheduleLocal: string;
   sellerEmail: string;
+  audienceTag: string | null;
+  availableTags: string[];
   settings: null | { resend_segment_id: string | null; synced_contact_count: number; last_synced_at: string | null };
   campaigns: Campaign[];
   template: { key: string; name: string; subject: string; previewText: string; previewUrl: string };
@@ -64,6 +66,7 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
   const [deliveryMode, setDeliveryMode] = useState("send");
   const [scheduleLocal, setScheduleLocal] = useState("");
   const [neverSyncedEmails, setNeverSyncedEmails] = useState<string[]>([]);
+  const [audienceTag, setAudienceTag] = useState("");
   const [debugEmailsText, setDebugEmailsText] = useState("thoko.semodi@gmail.com\nngobese.sphe@gmail.com\nmkotwana@gmail.com\npalesakguto50@gmail.com\nchaukestanton@gmail.com");
   const [debugResults, setDebugResults] = useState<{ email: string; localFound: boolean; localAcceptsMarketing: boolean | null; localRowCount: number; resendFound: boolean; resendUnsubscribed: boolean | null }[] | null>(null);
 
@@ -76,12 +79,12 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
     const response = await fetch("/api/dashboard/email-marketing", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: token, action, ...extra, template_key: templateKey }),
+      body: JSON.stringify({ access_token: token, action, audience_tag: audienceTag || undefined, ...extra, template_key: templateKey }),
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Email marketing request failed");
     return result;
-  }, [templateKey]);
+  }, [templateKey, audienceTag]);
 
   const load = useCallback(async () => {
     setError("");
@@ -288,6 +291,15 @@ function CampaignWorkspace({ templateKey, onBusyChange }: { templateKey: string;
           <button onClick={() => setPreviewOpen(true)} style={secondaryButton}>Preview email</button>
         </div>
       </div>
+
+      <label style={{ display: "block", marginTop: 14, fontSize: 12 }}>
+        Audience
+        <select aria-label="Audience" disabled={!!busy || !!unsentBatch} value={audienceTag} onChange={(event) => setAudienceTag(event.target.value)} style={{ ...inputStyle, display: "block", marginTop: 6, width: "100%", maxWidth: 360, fontSize: 13 }}>
+          <option value="">All opted-in customers</option>
+          {overview?.availableTags.map((tag) => <option key={tag} value={tag}>Tagged: {tag}</option>)}
+        </select>
+        {unsentBatch && <div style={{ marginTop: 4, fontSize: 10, color: "var(--muted-2)" }}>Discard the unsent draft below to change the audience.</div>}
+      </label>
 
       {error && <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", color: "#f87171", fontSize: 11 }}>{error}</div>}
       {notice && <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "rgba(34,197,94,.08)", border: "1px solid rgba(34,197,94,.2)", color: "#22c55e", fontSize: 11 }}>{notice}</div>}
