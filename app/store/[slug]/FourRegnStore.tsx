@@ -4774,6 +4774,15 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // Premium Tees, whose own breadcrumb then announced "Uncategorized"
           // instead. Case-insensitive since the exact casing varies by import.
           const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t) && t.toLowerCase() !== "uncategorized") || null;
+          // A category token that ISN'T one of the seller's own defined
+          // collections is, in practice, the per-artist tag added so e.g.
+          // "Kelvin Momo" gets one real page listing every design instead
+          // of several near-identical product pages competing against each
+          // other for the same Google search. Surfaced as its own explicit
+          // link (not folded into the breadcrumb above, which stays a real
+          // collection) so a customer landing on any one design can reach
+          // every other design by the same artist in one click.
+          const artistToken = catTokens.find((t) => !hiddenCollectionsSet.has(t) && t.toLowerCase() !== "uncategorized" && !sellerCollections.includes(t)) || null;
           const customSizeChart = resolveProductSizeChart(p.size_chart_html, p.description);
           const displayDescription = extractLegacyImportedSizeChart(p.description).description;
           const sizeChartType = getSizeChartType(p);
@@ -4833,6 +4842,16 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   <span className="sep">/</span>
                   <span className="current">{p.name}</span>
                 </div>
+                {artistToken && (
+                  <a
+                    className="fr-pdp2-artist-link"
+                    href={sp(`/collections/${collectionSlug(artistToken)}`)}
+                    onClick={(e) => { e.preventDefault(); navigate(sp(`/collections/${collectionSlug(artistToken)}`)); }}
+                    style={{ display: "inline-block", margin: "0 0 16px", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--accent, #e11d48)" }}
+                  >
+                    Shop more {artistToken} →
+                  </a>
+                )}
                 <div className="fr-pdp-grid">
                   <div className="fr-pdp-gal">
                     {isCustomPrintProduct(p) ? (

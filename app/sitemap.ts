@@ -86,8 +86,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // every cycle -- a real, avoidable cost for a resale catalog where
     // restocks are routine. Every other template still 404s on sold-out
     // (no Sold Out UI of its own yet), so it keeps the filter.
-    const products = await fetchAllRows<{ id: string; created_at: string | null; updated_at: string | null; handle: string | null }>(
-      supabaseAdmin, "products", "id, created_at, updated_at, handle", (q) => {
+    const products = await fetchAllRows<{ id: string; created_at: string | null; updated_at: string | null; handle: string | null; category: string | null }>(
+      supabaseAdmin, "products", "id, created_at, updated_at, handle, category", (q) => {
         let base = q.eq("seller_id", seller.id).eq("status", "published");
         if (seller.template !== "4regn") base = base.eq("in_stock", true);
         return base;
@@ -105,15 +105,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // Google had no reason to ever prioritize recrawling an updated page.
       entries.push({ url: `${origin}${path}`, lastModified: p.updated_at || p.created_at || undefined, changeFrequency: "weekly", priority: 0.8 });
     }
-  }
 
-  {
-    const collectionPrefix = "/collections";
-    const collections = Array.isArray(seller.collections) ? (seller.collections as string[]) : [];
-    entries.push({ url: `${origin}${collectionPrefix}/all`, changeFrequency: "daily", priority: 0.7 });
-    for (const c of collections) {
-      const slug = slugify(c);
-      if (slug) entries.push({ url: `${origin}${collectionPrefix}/${slug}`, changeFrequency: "weekly", priority: 0.6 });
+    {
+      const collectionPrefix = "/collections";
+      const collections = Array.isArray(seller.collections) ? (seller.collections as string[]) : [];
+      entries.push({ url: `${origin}${collectionPrefix}/all`, changeFrequency: "daily", priority: 0.7 });
+      const seenSlugs = new Set<string>();
+      for (const c of collections) {
+        const slug = slugify(c);
+        if (slug && !seenSlugs.has(slug)) {
+          seenSlugs.add(slug);
+          entries.push({ url: `${origin}${collectionPrefix}/${slug}`, changeFrequency: "weekly", priority: 0.6 });
+        }
+      }
+      // A product's category field can carry tokens beyond the seller's
+      // defined collection list -- e.g. the per-artist tokens added so
+      // "Kelvin Momo" (etc.) gets one real page listing every design
+      // instead of Google splitting ranking across several competing
+      // product pages for the same query. /collections/[collection] already
+      // serves any such token via its own distinct-category fallback (see
+      // that route's own comment); this is what makes those real, crawlable
+      // pages instead of ones only reachable by a lucky internal link.
+      for (const p of products) {
+        for (const token of (p.category || "").split(",")) {
+          const trimmed = token.trim();
+          if (!trimmed || trimmed.toLowerCase() === "uncategorized") continue;
+          const slug = slugify(trimmed);
+          if (slug && !seenSlugs.has(slug)) {
+            seenSlugs.add(slug);
+            entries.push({ url: `${origin}${collectionPrefix}/${slug}`, changeFrequency: "weekly", priority: 0.6 });
+          }
+        }
+      }
     }
   }
 
