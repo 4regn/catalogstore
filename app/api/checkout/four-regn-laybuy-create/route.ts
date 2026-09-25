@@ -64,13 +64,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Order is not eligible for payment" }, { status: 409 });
   }
 
-  // This order needs an actual customer_id (place-order always upserts
-  // one) so activateFourRegnLaybuyPlan has someone to attach the plan to --
-  // and it must be the SAME customer this session's account belongs to,
-  // otherwise a logged-in shopper could quietly start a Lay-Buy plan
-  // against a stranger's order (just knowing its UUID).
-  if (order.customer_id !== auth.account.customer_id) {
+  // This order must belong to the same person who's signed in, otherwise a
+  // logged-in shopper could quietly start a Lay-Buy plan against a
+  // stranger's order (just knowing its UUID) -- checked by EMAIL, not
+  // order.customer_id, since this platform's customers table can carry
+  // more than one row for the same email (leftover Shopify-import
+  // duplicates elsewhere have already been confirmed) -- place-order's own
+  // ilike-based customer lookup and this account's own activation lookup
+  // don't always land on the same row when that happens, which made a
+  // strict customer_id match reject a customer's own order. Email is what
+  // actually identifies "the same person" here.
+  const normalizedOrderEmail = String(order.customer_email || "").trim().toLowerCase();
+  const normalizedAccountEmail = String(auth.account.email || "").trim().toLowerCase();
+  if (!normalizedOrderEmail || normalizedOrderEmail !== normalizedAccountEmail) {
     return NextResponse.json({ error: "This order isn't linked to your account" }, { status: 403 });
+  }
+  // Now that email has confirmed this is genuinely the same person, repair
+  // a missing/mismatched customer_id on the order so activateFourRegnLaybuyPlan
+  // (and every future /api/customer-account/me load) attaches the plan to
+  // the right customer record -- same repair reasoning as that route's own
+  // historical-order customer_id backfill.
+  if (order.customer_id !== auth.account.customer_id) {
+    await admin.from("orders").update({ customer_id: auth.account.customer_id }).eq("id", order.id);
+    order.customer_id = auth.account.customer_id;
   }
 
   const total = Number(order.total) || 0;
