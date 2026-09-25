@@ -198,5 +198,20 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ order: publicOrder(order) }, { headers: { "Cache-Control": "no-store" } });
+  // The confirmation page needs to tell a Lay-Buy customer "you paid the
+  // deposit, here's what's left" rather than the generic "being prepared"
+  // message -- that breakdown lives on the plan, not the order itself, so
+  // it's folded into this same response the confirmation page already
+  // polls instead of adding a second round trip.
+  let laybuyPlan: { total_amount: number; paid_amount: number; status: string } | null = null;
+  if (order.payment_method === "four-regn-laybuy") {
+    const { data: plan } = await admin
+      .from("four_regn_laybuy_plans")
+      .select("total_amount, paid_amount, status")
+      .eq("order_id", order.id)
+      .maybeSingle();
+    laybuyPlan = plan || null;
+  }
+
+  return NextResponse.json({ order: publicOrder(order), laybuyPlan }, { headers: { "Cache-Control": "no-store" } });
 }

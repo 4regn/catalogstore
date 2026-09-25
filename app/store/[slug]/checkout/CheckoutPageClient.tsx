@@ -221,6 +221,16 @@ const FOUR_REGN_CHECKOUT_CSS = `
 .fr-checkout-v2 .installments>div:first-child i{background:#00751f}
 .fr-checkout-v2 .laybuy-note{margin-top:16px;padding-top:14px;border-top:1px solid #e1e1e1;font-size:11px;line-height:1.55;color:#666}
 .fr-checkout-v2 .laybuy-note strong{color:#050505;font-weight:600}
+.fr-checkout-v2 .laybuy-picker{padding:0 16px 16px 47px}
+.fr-checkout-v2 .laybuy-picker-slider{width:100%;margin:10px 0 4px;accent-color:#050505}
+.fr-checkout-v2 .laybuy-picker-amount{display:flex;align-items:baseline;gap:6px}
+.fr-checkout-v2 .laybuy-picker-amount input{width:110px;height:38px;border:1px solid #cfcfcf;border-radius:8px;padding:0 10px;font-size:15px;font-weight:700;color:#050505;outline:none}
+.fr-checkout-v2 .laybuy-picker-amount input:focus{border-color:#050505}
+.fr-checkout-v2 .laybuy-picker-amount span{font-size:11px;color:#888}
+.fr-checkout-v2 .laybuy-picker-bar{height:6px;border-radius:99px;background:#e6e6e2;margin:12px 0;overflow:hidden}
+.fr-checkout-v2 .laybuy-picker-bar div{height:100%;background:#00751f;border-radius:99px}
+.fr-checkout-v2 .laybuy-picker-nums{display:flex;justify-content:space-between;font-size:11px;color:#666}
+.fr-checkout-v2 .laybuy-picker-nums strong{color:#050505}
 .fr-checkout-v2 .promo-row{display:grid;grid-template-columns:1fr auto;gap:8px}
 .fr-checkout-v2 .promo-row input{height:50px;border:1px solid #cfcfcf;border-radius:8px;padding:0 14px;background:#fff;outline:none;color:#050505;text-transform:uppercase;letter-spacing:.03em;font-weight:600}
 .fr-checkout-v2 .promo-row input:focus{border-color:#050505}
@@ -411,7 +421,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
   const [discountApplied, setDiscountApplied] = useState<{ code: string; type: string; value: number; applies_to: string; product_ids: string[]; collection_names: string[] } | null>(null);
   const [discountError, setDiscountError] = useState("");
   const [applyingDiscount, setApplyingDiscount] = useState(false);
-  const [paidOrder, setPaidOrder] = useState<{ id?: string; order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; payment_status?: string; status?: string; _processing?: boolean; _timedOut?: boolean; _failed?: boolean } | null>(null);
+  const [paidOrder, setPaidOrder] = useState<{ id?: string; order_number: string; external_id?: string | null; total: number; items: any[]; customer_name: string; payment_status?: string; status?: string; payment_method?: string; laybuyPlan?: { total_amount: number; paid_amount: number; status: string } | null; _processing?: boolean; _timedOut?: boolean; _failed?: boolean } | null>(null);
   const storefrontCartKey = `catalogstore-cart-v1:${(initialSeller?.subdomain || slug).toLowerCase()}`;
 
   // Keep the saved cart during a cancelled/failed/pending gateway attempt so
@@ -486,6 +496,11 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
   const [laybuySignupPassword, setLaybuySignupPassword] = useState("");
   const [laybuyError, setLaybuyError] = useState("");
   const [laybuyLoading, setLaybuyLoading] = useState(false);
+  // null = "use the minimum deposit" -- lets the slider/input below default
+  // to 30% of the CURRENT total (which can change as the cart/discount
+  // changes) without this state going stale, instead of freezing whatever
+  // number was true when the payment method was first selected.
+  const [laybuyDepositOverride, setLaybuyDepositOverride] = useState<number | null>(null);
 
   // Starts (or resumes) the deposit checkout for an already-placed Lay-Buy
   // order. Returns "needs-auth" on a 401 so the caller can open the modal
@@ -496,7 +511,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
       const res = await fetch("/api/checkout/four-regn-laybuy-create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: orderIdToUse, slug, returnOrigin: window.location.origin }),
+        body: JSON.stringify({ orderId: orderIdToUse, slug, depositAmount: laybuyDepositAmount, returnOrigin: window.location.origin }),
       });
       if (res.status === 401) return "needs-auth";
       const json = await res.json().catch(() => ({}));
@@ -683,9 +698,13 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
         const orderId = (paidOrder as any).id || new URLSearchParams(window.location.search).get("paid");
         if (!orderId) { stopped = true; return; }
         const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(orderId)}`, { cache: "no-store" });
-        const { order: data } = await response.json().catch(() => ({ order: null }));
-        if (data && (data.payment_status === "paid" || data.status === "confirmed")) {
-          setPaidOrder({ ...data, _processing: false });
+        const { order: data, laybuyPlan } = await response.json().catch(() => ({ order: null, laybuyPlan: null }));
+        // A Lay-Buy deposit lands the order at payment_status "partial", not
+        // "paid" -- a genuinely resolved, successful outcome for THIS step
+        // (the balance is meant to stay outstanding until paid off later),
+        // not an in-progress state to keep polling on.
+        if (data && (data.payment_status === "paid" || data.payment_status === "partial" || data.status === "confirmed")) {
+          setPaidOrder({ ...data, laybuyPlan, _processing: false });
           stopped = true;
         } else if (data && data.payment_status === "failed") {
           // A definitive outcome (order-status's own Stitch self-heal saw
@@ -838,9 +857,12 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
       // making the payment-status result below wait for it.
       sellerRefreshPromise.then((freshSeller) => { if (freshSeller) setSeller(freshSeller); });
       const response = await fetch(`/api/checkout/order-status?slug=${encodeURIComponent(slug)}&orderId=${encodeURIComponent(paidId)}`, { cache: "no-store" });
-      const { order } = await response.json().catch(() => ({ order: null }));
-      if (order && (order.payment_status === "paid" || order.status === "confirmed" || order.status === "delivered")) {
-        setPaidOrder(order); setLoading(false); return;
+      const { order, laybuyPlan } = await response.json().catch(() => ({ order: null, laybuyPlan: null }));
+      // Same "partial" == resolved-success reasoning as the polling
+      // useEffect above -- a Lay-Buy deposit legitimately leaves the order
+      // at payment_status "partial", not "paid".
+      if (order && (order.payment_status === "paid" || order.payment_status === "partial" || order.status === "confirmed" || order.status === "delivered")) {
+        setPaidOrder({ ...order, laybuyPlan }); setLoading(false); return;
       }
       if (order && order.payment_status === "failed") {
         // Already confirmed as not-paid (order-status's own self-heal, e.g.
@@ -1326,6 +1348,14 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
     : Math.max(0, subtotal - discountAmount - automaticDiscount.totalDiscount + shipping);
   const itemCount = cart.reduce((s, i) => s + i.qty, 0);
 
+  // null = "use the minimum deposit" -- lets this default to 30% of the
+  // CURRENT total (which can change as the cart/discount changes) without
+  // laybuyDepositOverride going stale, instead of freezing whatever number
+  // was true when the payment method was first selected.
+  const laybuyDepositAmount = Math.min(total, Math.max(fourRegnLaybuyMinDeposit(total), laybuyDepositOverride ?? fourRegnLaybuyMinDeposit(total)));
+  const laybuyDepositPercent = total > 0 ? Math.round((laybuyDepositAmount / total) * 100) : 0;
+  const laybuyRemaining = Math.max(0, total - laybuyDepositAmount);
+
   const applyDiscount = async () => {
     if (!discountCode.trim() || !seller) return;
     setApplyingDiscount(true); setDiscountError("");
@@ -1662,6 +1692,18 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                   <h1>Almost there…</h1>
                   <p>Thanks {paidOrder.customer_name}. Your order is saved and we're waiting on confirmation from your payment provider &mdash; this page updates automatically the moment it lands. Don&rsquo;t want to wait? You can try again with a different payment method below &mdash; if your original payment still goes through, we&rsquo;ll confirm it by email either way.</p>
                 </>
+              ) : paidOrder.payment_method === "four-regn-laybuy" ? (
+                <>
+                  <div className="confirm-icon success"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+                  <h1>Deposit received!</h1>
+                  {paidOrder.laybuyPlan ? (
+                    <p>
+                      Thank you, {paidOrder.customer_name}. Your R{Number(paidOrder.laybuyPlan.paid_amount).toLocaleString("en-ZA")} deposit is in &mdash; R{Math.max(0, Number(paidOrder.laybuyPlan.total_amount) - Number(paidOrder.laybuyPlan.paid_amount)).toLocaleString("en-ZA")} left to pay off. Your order ships once it&rsquo;s fully paid. Log in to your 4REGN account any time to pay off the rest or check your balance.
+                    </p>
+                  ) : (
+                    <p>Thank you, {paidOrder.customer_name}. Your deposit is in &mdash; log in to your 4REGN account any time to pay off the rest. Your order ships once it&rsquo;s fully paid.</p>
+                  )}
+                </>
               ) : (
                 <>
                   <div className="confirm-icon success"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
@@ -1691,6 +1733,8 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
             <div className="confirm-actions">
               {paidOrder._processing ? (
                 <button type="button" className="pay-btn" style={{ display: "block", width: "100%" }} onClick={() => { retryFromTimedOutOrder(); }}>Try again</button>
+              ) : paidOrder.payment_method === "four-regn-laybuy" ? (
+                <a className="pay-btn" href={sp("/account")} style={{ textDecoration: "none", display: "block" }}>View my Lay-Buy balance</a>
               ) : (
                 <a className="pay-btn" href={sp()} style={{ textDecoration: "none", display: "block" }}>Continue shopping</a>
               )}
@@ -2043,8 +2087,38 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                       </div>
                     </div>
                     {paymentMethod === "four-regn-laybuy" && (
-                      <div className="payment-note">
-                        Pay a R{fourRegnLaybuyMinDeposit(total).toFixed(0)} deposit today (min. 30%) to reserve your order, then pay off the rest &mdash; any amount, any time &mdash; from your 4REGN account. Your order ships once it&rsquo;s fully paid.
+                      <div className="laybuy-picker">
+                        <div className="laybuy-picker-amount">
+                          <span>R</span>
+                          <input
+                            type="number"
+                            min={fourRegnLaybuyMinDeposit(total)}
+                            max={total}
+                            step={1}
+                            value={Math.round(laybuyDepositAmount)}
+                            onChange={(e) => setLaybuyDepositOverride(Number(e.target.value) || 0)}
+                            onBlur={() => setLaybuyDepositOverride(laybuyDepositAmount)}
+                          />
+                          <span>due today ({laybuyDepositPercent}%)</span>
+                        </div>
+                        <input
+                          className="laybuy-picker-slider"
+                          type="range"
+                          min={fourRegnLaybuyMinDeposit(total)}
+                          max={total}
+                          step={1}
+                          value={laybuyDepositAmount}
+                          onChange={(e) => setLaybuyDepositOverride(Number(e.target.value))}
+                        />
+                        <div className="laybuy-picker-bar"><div style={{ width: `${laybuyDepositPercent}%` }} /></div>
+                        <div className="laybuy-picker-nums">
+                          <span>Pay today: <strong>R{laybuyDepositAmount.toFixed(0)}</strong></span>
+                          <span>Left to pay off: <strong>R{laybuyRemaining.toFixed(0)}</strong></span>
+                        </div>
+                        <div className="payment-note" style={{ padding: "14px 0 0" }}>
+                          Minimum deposit is 30% (R{fourRegnLaybuyMinDeposit(total).toFixed(0)}). Drag the slider or type an amount to pay more now &mdash; you&rsquo;ll be sent to Yoco to pay <strong>R{laybuyDepositAmount.toFixed(0)}</strong> securely, and can clear the remaining <strong>R{laybuyRemaining.toFixed(0)}</strong> any time from your 4REGN account. Your order ships once it&rsquo;s fully paid.
+                          {" "}Already started a Lay-Buy order? <a href={sp("/account")} style={{ color: "inherit", fontWeight: 600 }}>Log in to your account</a> to check your balance.
+                        </div>
                       </div>
                     )}
                   </div>
@@ -2105,7 +2179,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                   }}
                   disabled={placing}
                 >
-                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : paymentMethod === "float" ? "Continue to Float · R" + total.toFixed(0) : paymentMethod === "four-regn-laybuy" ? "Continue to Lay-Buy · R" + fourRegnLaybuyMinDeposit(total).toFixed(0) + " deposit" : "Pay now · R" + total.toFixed(0)}
+                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : paymentMethod === "float" ? "Continue to Float · R" + total.toFixed(0) : paymentMethod === "four-regn-laybuy" ? "Continue to Lay-Buy · R" + laybuyDepositAmount.toFixed(0) + " today" : "Pay now · R" + total.toFixed(0)}
                 </button>
               </div>
               <div className="trust-row">
@@ -2284,7 +2358,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                 <button className="setla-modal-close" onClick={() => setLaybuyModalOpen(false)} aria-label="Close">&times;</button>
                 <div className="setla-modal-amount">
                   <span>Deposit due today</span>
-                  <strong>R{fourRegnLaybuyMinDeposit(total).toLocaleString("en-ZA")}</strong>
+                  <strong>R{laybuyDepositAmount.toLocaleString("en-ZA")}</strong>
                 </div>
 
                 {laybuyModalView === "choice" ? (
