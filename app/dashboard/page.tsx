@@ -29,7 +29,7 @@ type DashIconName =
   | "cart" | "discount" | "editor" | "theme" | "store" | "domain" | "payment"
   | "analytics" | "share" | "qrcode" | "settings" | "account" | "check"
   | "warning" | "pending" | "external" | "bell" | "chevron-down" | "trend-up"
-  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock" | "desktop" | "mobile-device" | "live";
+  | "eye" | "box" | "sparkle" | "drag" | "expand" | "shrink" | "menu" | "crown" | "affiliate" | "megaphone" | "lock" | "desktop" | "mobile-device" | "live" | "star";
 
 function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIconName; size?: number; stroke?: number; className?: string }) {
   const c = { width: size, height: size, viewBox: "0 0 20 20", fill: "none", stroke: "currentColor", strokeWidth: stroke, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, className };
@@ -70,6 +70,7 @@ function DashIcon({ name, size = 15, stroke = 1.6, className }: { name: DashIcon
     case "affiliate": return <svg {...c}><circle cx="7" cy="7" r="3"/><circle cx="14" cy="13" r="3"/><path d="m8.8 8.8 4.4 2.4"/></svg>;
     case "megaphone": return <svg {...c}><path d="M3 8v4l5 1V7L3 8Z"/><path d="M8 7l8-3.5v13L8 13"/><path d="M5.5 13 6 17h2l-.3-3.5"/></svg>;
     case "live": return <svg {...c}><circle cx="10" cy="10" r="2" fill="currentColor" stroke="none"/><path d="M6.5 6.5a5 5 0 0 0 0 7"/><path d="M13.5 6.5a5 5 0 0 1 0 7"/><path d="M4 4a9 9 0 0 0 0 12"/><path d="M16 4a9 9 0 0 1 0 12"/></svg>;
+    case "star": return <svg {...c}><path d="M10 2.5l2.2 4.7 5.1.7-3.7 3.7.9 5.2-4.5-2.4-4.5 2.4.9-5.2-3.7-3.7 5.1-.7 2.2-4.7Z"/></svg>;
     case "lock": return <svg {...c}><rect x="4" y="9" width="12" height="8" rx="1.5"/><path d="M6.5 9V6a3.5 3.5 0 0 1 7 0v3"/></svg>;
     case "desktop": return <svg {...c}><rect x="2" y="3.5" width="16" height="10.5" rx="1.2"/><path d="M7 17h6"/><path d="M10 14v3"/></svg>;
     case "mobile-device": return <svg {...c}><rect x="6" y="2" width="8" height="16" rx="1.5"/><path d="M9 15.3h2"/></svg>;
@@ -420,7 +421,7 @@ const templatesForSeller = (subdomain?: string | null) => {
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "customers" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "customers" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team" | "reviews";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -736,6 +737,14 @@ export default function Dashboard() {
   const [subscribers, setSubscribers] = useState<{ first_name: string | null; email: string; created_at: string; consented_at?: string | null }[]>([]);
   const [subscribersLoading, setSubscribersLoading] = useState(false);
   const [subscribersLoaded, setSubscribersLoaded] = useState(false);
+  const [storeReviews, setStoreReviews] = useState<{ id: string; image_url: string; quote: string | null; created_at: string }[]>([]);
+  const [storeReviewsLoading, setStoreReviewsLoading] = useState(false);
+  const [storeReviewsLoaded, setStoreReviewsLoaded] = useState(false);
+  const [newReviewFile, setNewReviewFile] = useState<File | null>(null);
+  const [newReviewPreviewUrl, setNewReviewPreviewUrl] = useState("");
+  const [newReviewQuote, setNewReviewQuote] = useState("");
+  const [reviewUploading, setReviewUploading] = useState(false);
+  const [reviewUploadError, setReviewUploadError] = useState("");
   const [productSort, setProductSort] = useState("manual");
 
   interface DiscountCode { id: string; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: boolean; expires_at: string | null; created_at: string; applies_to: string; product_ids: string[]; collection_names: string[]; show_countdown: boolean; description?: string | null; }
@@ -907,6 +916,7 @@ export default function Dashboard() {
     setMystoreFocusTemplates(false);
     if (t === "newsletter" && !subscribersLoaded && !subscribersLoading) void fetchSubscribers();
     if (t === "inbox" && !inboxLoaded && !inboxLoading) void fetchInbox();
+    if (t === "reviews" && !storeReviewsLoaded && !storeReviewsLoading) void fetchStoreReviews();
   };
 
   const checkAuth = async () => {
@@ -1310,6 +1320,56 @@ export default function Dashboard() {
     } catch {}
     setSubscribersLoading(false);
     setSubscribersLoaded(true);
+  };
+
+  // Reviews list/upload/delete go straight through the client `supabase`
+  // instance (same pattern as the logo/banner upload below, not a
+  // dedicated API route) -- store_reviews' RLS policy scopes writes to
+  // seller_id = auth.uid(), which the seller's own logged-in session
+  // already satisfies, so there's no separate access check to perform here.
+  const fetchStoreReviews = async () => {
+    if (!seller) return;
+    setStoreReviewsLoading(true);
+    try {
+      const { data } = await supabase.from("store_reviews").select("id, image_url, quote, created_at").eq("seller_id", seller.id).order("created_at", { ascending: false });
+      setStoreReviews(data || []);
+    } catch {}
+    setStoreReviewsLoading(false);
+    setStoreReviewsLoaded(true);
+  };
+
+  const addStoreReview = async () => {
+    if (!seller || !newReviewFile) return;
+    setReviewUploading(true);
+    setReviewUploadError("");
+    try {
+      const ext = newReviewFile.name.split(".").pop() || "jpg";
+      const path = `${seller.id}/reviews/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("store-assets").upload(path, newReviewFile, { contentType: newReviewFile.type });
+      if (uploadErr) throw uploadErr;
+      const { data: urlData } = supabase.storage.from("store-assets").getPublicUrl(path);
+      const { data: inserted, error: insertErr } = await supabase
+        .from("store_reviews")
+        .insert({ seller_id: seller.id, image_url: urlData.publicUrl, quote: newReviewQuote.trim() || null })
+        .select("id, image_url, quote, created_at")
+        .single();
+      if (insertErr) throw insertErr;
+      setStoreReviews((prev) => [inserted, ...prev]);
+      setNewReviewFile(null);
+      setNewReviewPreviewUrl("");
+      setNewReviewQuote("");
+    } catch {
+      setReviewUploadError("Could not add that review -- please try again.");
+    }
+    setReviewUploading(false);
+  };
+
+  const deleteStoreReview = async (id: string) => {
+    if (!confirm("Remove this review? It will no longer show on your storefront.")) return;
+    const previous = storeReviews;
+    setStoreReviews((prev) => prev.filter((r) => r.id !== id));
+    const { error } = await supabase.from("store_reviews").delete().eq("id", id);
+    if (error) setStoreReviews(previous);
   };
 
   const fetchInbox = async (silent = false) => {
@@ -2394,6 +2454,7 @@ export default function Dashboard() {
             ]
           : [{ key: "products" as TabKey, name: "Products", icon: "products" as DashIconName, count: publishedCount }]),
         { key: "checkout" as TabKey, name: "Checkout", icon: "payment" as DashIconName },
+        ...(seller?.template === "4regn" ? [{ key: "reviews" as TabKey, name: "Reviews", icon: "star" as DashIconName, count: storeReviews.length }] : []),
         ...(!domainConnected ? [{ key: "domains" as TabKey, name: "Domain", icon: "domain" as DashIconName, pro: true }] : []),
       ],
     },
@@ -5644,6 +5705,63 @@ export default function Dashboard() {
                     <div key={s.email} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 4px", borderBottom: i === subscribers.length - 1 ? "none" : "1px solid var(--border)" }}>
                       <span style={{ fontSize: 13, color: "var(--text)" }}>{s.first_name ? <><strong>{s.first_name}</strong><span style={{ color: "var(--muted)", marginLeft: 8 }}>{s.email}</span></> : s.email}</span>
                       <span style={{ fontSize: 11, color: "var(--muted-2)" }}>{new Date(s.created_at).toLocaleDateString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>)}
+
+          {tab === "reviews" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Reviews</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>WhatsApp screenshots from real customers. A random few show on your homepage, and the full gallery shows on your store's Reviews page.</p>
+            <div style={{ ...sectionCard, marginBottom: 20 }}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 14 }}>Add a review</h3>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap" as const, alignItems: "flex-start" }}>
+                <label style={{ display: "flex", flexDirection: "column" as const, alignItems: "center", justifyContent: "center", width: 120, height: 120, borderRadius: 12, border: "1px dashed var(--border)", background: "var(--panel-2)", cursor: "pointer", overflow: "hidden", flexShrink: 0 }}>
+                  {newReviewPreviewUrl ? (
+                    <img src={newReviewPreviewUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" as const }} />
+                  ) : (
+                    <span style={{ fontSize: 11, color: "var(--muted-2)", textAlign: "center" as const, padding: "0 10px" }}>Choose screenshot</span>
+                  )}
+                  <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; setNewReviewFile(f); setReviewUploadError(""); const r = new FileReader(); r.onload = (ev) => setNewReviewPreviewUrl(ev.target?.result as string); r.readAsDataURL(f); }} style={{ display: "none" }} />
+                </label>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <textarea
+                    value={newReviewQuote}
+                    onChange={(e) => setNewReviewQuote(e.target.value)}
+                    placeholder="What the customer said (optional) -- e.g. their WhatsApp message"
+                    rows={3}
+                    style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid var(--border)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 13, resize: "vertical" as const, marginBottom: 10 }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <button
+                      onClick={() => void addStoreReview()}
+                      disabled={!newReviewFile || reviewUploading}
+                      style={{ padding: "10px 20px", background: newReviewFile ? G : "var(--panel-2)", color: newReviewFile ? "#fff" : "var(--muted)", border: "none", borderRadius: 100, fontSize: 12, fontWeight: 800, cursor: newReviewFile && !reviewUploading ? "pointer" : "default", textTransform: "uppercase" as const, letterSpacing: "0.04em" }}
+                    >
+                      {reviewUploading ? "Adding…" : "Add review"}
+                    </button>
+                    {reviewUploadError && <span style={{ fontSize: 12, color: "#b42318" }}>{reviewUploadError}</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={sectionCard}>
+              <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 14 }}>{storeReviews.length} Review{storeReviews.length === 1 ? "" : "s"}</h3>
+              {storeReviewsLoading && storeReviews.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>Loading…</p>
+              ) : storeReviews.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>No reviews yet -- add your first screenshot above.</p>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+                  {storeReviews.map((r) => (
+                    <div key={r.id} style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" as const }}>
+                      <img src={r.image_url} alt="" style={{ width: "100%", height: 160, objectFit: "cover" as const }} />
+                      <div style={{ padding: 10, display: "flex", flexDirection: "column" as const, gap: 8, flex: 1 }}>
+                        <p style={{ fontSize: 12, color: "var(--text)", margin: 0, flex: 1, lineHeight: 1.5 }}>{r.quote || <em style={{ color: "var(--muted-2)" }}>No quote</em>}</p>
+                        <button onClick={() => void deleteStoreReview(r.id)} style={{ alignSelf: "flex-start", padding: "6px 12px", background: "transparent", border: "1px solid var(--border)", borderRadius: 100, color: "#b42318", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Remove</button>
+                      </div>
                     </div>
                   ))}
                 </div>

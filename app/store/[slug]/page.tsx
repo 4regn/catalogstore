@@ -210,7 +210,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
   }
 
   const productColumns = tpl === "4regn" ? FOUR_REGN_HOME_PRODUCT_COLUMNS : PRODUCT_COLUMNS;
-  const [initialProductsRaw, discountsRes] = await Promise.all([
+  const [initialProductsRaw, discountsRes, reviewsRes] = await Promise.all([
     // 4regn doesn't filter on in_stock here -- see products/[handle]/page.tsx's
     // comment on the same exemption. This only feeds "Shop by Collection"/
     // "Shop by Gender" tile counts and cover images for 4regn (its homepage
@@ -230,12 +230,25 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
       .eq("active", true)
       .eq("show_countdown", true)
       .not("expires_at", "is", null),
+    // 4regn-only reviews gallery (dashboard-managed, see store_reviews
+    // migration) -- the WHOLE gallery is fetched here (cheap: just an
+    // image url + a short quote per row) so FourRegnReviewsCarousel can
+    // pick a random subset per visitor without a separate round trip, but
+    // it only ever renders a capped few of them, never the full list. Not
+    // fetched for other templates, which don't have this section at all.
+    // .then() swallows a missing-table error into an empty array instead
+    // of throwing, so this keeps working even before the migration that
+    // creates store_reviews has been run.
+    tpl === "4regn"
+      ? supabaseAdmin.from("store_reviews").select("id, image_url, quote").eq("seller_id", seller.id).then((r) => r.data ?? [], () => [])
+      : Promise.resolve([]),
   ]);
 
   const initialProducts = initialProductsRaw;
   const initialDiscountCodes = discountsRes.data ?? [];
+  const initialReviews = reviewsRes;
   const isSubdomain = await isStoreSubdomainRequest();
-  const props = { initialSeller: trimSellerTemplateConfigs(seller, tpl), initialProducts, initialDiscountCodes, isSubdomain };
+  const props = { initialSeller: trimSellerTemplateConfigs(seller, tpl), initialProducts, initialDiscountCodes, initialReviews, isSubdomain };
 
   const StoreComponent =
     tpl === "crown" ? Crown :

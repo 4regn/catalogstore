@@ -21,6 +21,7 @@ import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 // importing it normally still lets Next SSR its first paint.
 import FourRegnHeroSlideshow, { type FourRegnHeroSlide } from "./FourRegnHeroSlideshow";
 import FourRegnReviewsCarousel from "./FourRegnReviewsCarousel";
+import type { StoreReview } from "./fourRegnReviews";
 import {
   FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_ELIGIBLE_COLLECTIONS, FLASH_CAP_THRESHOLD, FLASH_CAP_END,
   isFlashCapActive, isFlashCapEligibleProduct, computeFlashCapState,
@@ -601,6 +602,11 @@ interface StorePageProps {
   initialProducts?: Product[];
   initialDiscountCodes?: any[];
   initialPromoBadges?: PromoBadge[];
+  // Seller's reviews gallery (store_reviews table, managed from the
+  // dashboard), only ever populated on the home route -- see
+  // FourRegnReviewsCarousel.tsx for why the whole list is fetched but only
+  // a random few of them ever render.
+  initialReviews?: StoreReview[];
   initialProductId?: string;
   mode?: "home" | "collection" | "product" | "collections-index" | "policy" | "search";
   collectionName?: string;
@@ -856,7 +862,7 @@ function CustomPrintHint({ product, error, processing }: { product: Product; err
   );
 }
 
-export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount, initialSearchQuery }: StorePageProps = {}) {
+export default function FourRegnStore({ initialSeller, initialProducts, initialDiscountCodes, initialPromoBadges, initialProductId, initialReviews, mode = "home", collectionName, isSubdomain, initialActiveProduct, policyKey, currentPage = 1, totalPages = 1, currentSort = "default", totalProductCount, initialSearchQuery }: StorePageProps = {}) {
   const isCollectionView = mode === "collection";
   const isHomeView = mode === "home";
   const isProductView = mode === "product";
@@ -5374,7 +5380,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             "reviews" throughout, not "testimonials" -- that's the term
             people actually search ("4regn reviews"), which is also exactly
             what this section exists to outrank on Google. */}
-        {isHomeView && (
+        {isHomeView && (initialReviews?.length ?? 0) > 0 && (
           <EditSection id="reviews" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <section className="fr-rev">
               <div className="fr-rev-head">
@@ -5384,7 +5390,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                   Real reviews from real customers &mdash; the parcels arriving, the fits going on, straight from our WhatsApp.
                 </p>
               </div>
-              <FourRegnReviewsCarousel />
+              <FourRegnReviewsCarousel reviews={initialReviews!} />
               <a
                 className="fr-rev-more"
                 href={sp("/reviews")}

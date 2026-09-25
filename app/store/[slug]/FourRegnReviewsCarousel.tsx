@@ -1,19 +1,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FOUR_REGN_REVIEWS } from "./fourRegnReviews";
+import { sampleReviews, type StoreReview } from "./fourRegnReviews";
 
 const SLIDE_DURATION_MS = 5000;
+// The seller's full reviews gallery (store_reviews table, managed from the
+// dashboard) can grow well past what a homepage section should ever render
+// at once -- capped here so the carousel only ever downloads/shows this
+// many images per visit, however large the gallery gets.
+const VISIBLE_COUNT = 5;
 
 // Isolated into its own component for the same reason
 // FourRegnHeroSlideshow.tsx is -- FourRegnStore is one huge component tree,
 // and a ticking interval living at its top level re-renders everything
 // under it (every product card, etc.) on every tick, not just this card.
 // Only this small subtree re-renders every 5 seconds.
-export default function FourRegnReviewsCarousel() {
+export default function FourRegnReviewsCarousel({ reviews }: { reviews: StoreReview[] }) {
+  // Picked once, when this component first mounts -- not on every render,
+  // and not the same subset every time either. `reviews` itself is the
+  // seller's whole gallery (fetched once server-side and cached like the
+  // rest of the homepage), so this is what actually makes the visible set
+  // random per visitor without ever fetching or rendering more than
+  // VISIBLE_COUNT images.
+  const [slides] = useState(() => sampleReviews(reviews, VISIBLE_COUNT));
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
-  const count = FOUR_REGN_REVIEWS.length;
+  const count = slides.length;
 
   useEffect(() => {
     if (count <= 1 || paused) return;
@@ -22,7 +34,7 @@ export default function FourRegnReviewsCarousel() {
   }, [count, paused]);
 
   if (!count) return null;
-  const current = FOUR_REGN_REVIEWS[index];
+  const current = slides[index];
 
   return (
     <div
@@ -42,16 +54,15 @@ export default function FourRegnReviewsCarousel() {
       )}
       <div className="fr-rev-card">
         <div className="fr-rev-photo">
-          {/* Plain <img>, not next/image -- these are static local files
-              served straight from /public, and a screenshot's whole point
-              here is looking like an untouched WhatsApp capture rather
-              than a processed marketing asset. */}
+          {/* Plain <img>, not next/image -- these are seller-uploaded
+              screenshots from arbitrary sources (Supabase Storage today),
+              and a screenshot's whole point here is looking like an
+              untouched WhatsApp capture rather than a processed marketing
+              asset. */}
           <img
-            key={current.src}
-            src={current.src}
-            alt="4REGN customer's WhatsApp message and photo after receiving their order"
-            width={current.width}
-            height={current.height}
+            key={current.id}
+            src={current.image_url}
+            alt={current.quote || "4REGN customer review shared on WhatsApp"}
             loading="lazy"
           />
         </div>
@@ -76,7 +87,7 @@ export default function FourRegnReviewsCarousel() {
       )}
       {count > 1 && (
         <div className="fr-rev-dots">
-          {FOUR_REGN_REVIEWS.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               type="button"
