@@ -75,10 +75,9 @@ export default async function ReviewsPage({ params }: { params: Promise<{ slug: 
         <div className="eyebrow">{seller.store_name} Reviews · 7 Years Running</div>
         <h1>Join the {seller.store_name} Family</h1>
         <p>
-          These are some of the real messages and photos our customers send us on WhatsApp the
-          moment their parcel arrives — no filters, no staging, just real reviews and testimonials
-          from people getting their order and telling us about it. Seven years in, this is what
-          we&rsquo;re most proud of.
+          Every parcel that lands, every fit that goes on — customers send us the proof on
+          WhatsApp before we even get the chance to ask. Seven years of {seller.store_name},
+          right here.
         </p>
       </section>
 
