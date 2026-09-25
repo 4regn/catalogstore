@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../lib/store-host";
 import { resolveSellerTemplate, UNIK_TEMPLATE_ID } from "../../../lib/store-template-access";
 import { trimSellerTemplateConfigs, effectiveStoreConfig } from "../../../lib/template-config";
-import { canonicalStoreUrlForRequest } from "../../../lib/store-canonical-server";
+import { canonicalStoreUrlForRequest, sellerMetadataTitle } from "../../../lib/store-canonical-server";
 import { fetchAllRows } from "../../../lib/fetch-all-rows";
 import StoreUnavailable from "./StoreUnavailable";
 
@@ -121,7 +121,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status);
 
   return {
-    title,
+    title: sellerMetadataTitle(title, seller.custom_domain_status),
     description,
     alternates: { canonical },
     openGraph: {

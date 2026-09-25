@@ -2,7 +2,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
-import { canonicalStoreUrlForRequest } from "../../../../../lib/store-canonical-server";
+import { canonicalStoreUrlForRequest, sellerMetadataTitle } from "../../../../../lib/store-canonical-server";
 import StoreUnavailable from "../../StoreUnavailable";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/collections/${collection}`);
 
   return {
-    title,
+    title: sellerMetadataTitle(title, seller.custom_domain_status),
     description,
     alternates: { canonical },
     robots: { index: false, follow: true },

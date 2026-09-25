@@ -9,6 +9,7 @@ import { trimSellerTemplateConfigs } from "../../../../lib/template-config";
 import { fetchAllRows } from "../../../../lib/fetch-all-rows";
 import { getCachedFourRegnCatalog } from "../../../../lib/four-regn-catalog-cache";
 import { productMatchesQuery } from "../../../../lib/product-search";
+import { sellerMetadataTitle } from "../../../../lib/store-canonical-server";
 import StoreUnavailable from "../StoreUnavailable";
 
 // force-dynamic, not force-static -- reads ?q/?page/?sort off searchParams
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
 const FourRegn = nextDynamic(() => import("../FourRegnStore"));
 
 const SELLER_COLUMNS =
-  "id, store_name, whatsapp_number, subdomain, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
+  "id, store_name, whatsapp_number, subdomain, custom_domain_status, template, primary_color, logo_url, banner_url, tagline, description, collections, social_links, store_config, template_configs, checkout_config, subscription_status, subscription_grace_until, trial_ends_at, payfast_subscription_token";
 // Same column set c/[collection]/page.tsx selects for tpl === "4regn" --
 // see that file's own PRODUCT_COLUMNS comment for why each field is here,
 // including in_stock (ProductCard's Sold Out badge/disabled button).
@@ -87,7 +88,7 @@ export async function generateMetadata({
   const title = query ? `Search: "${query}" | ${seller.store_name}` : `Search | ${seller.store_name}`;
 
   return {
-    title,
+    title: sellerMetadataTitle(title, seller.custom_domain_status),
     description: query ? `Search results for "${query}" at ${seller.store_name}.` : `Search ${seller.store_name}'s products.`,
     // A search-results page's content is entirely a function of an
     // arbitrary query string -- indexing every possible ?q= would just be

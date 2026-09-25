@@ -16,3 +16,16 @@ export function canonicalStoreUrlForRequest(
     ? `https://${hostname}${suffix}`
     : canonicalStoreUrl(slug, suffix);
 }
+
+// The root layout's title.template appends " · CatalogStore" to any
+// plain-string page title -- right for a seller still on their
+// {slug}.catalogstore.co.za subdomain (reinforces the platform they're
+// built on), wrong for one on their own verified custom domain (e.g.
+// 4regn.com, anclothing.co.za, uniklabs.co.za), who presents as an
+// independent business there. Google was literally showing
+// "4regn · CatalogStore" in search results because every storefront page's
+// generateMetadata returned a plain string title. An absolute title opts
+// a page out of every ancestor template.
+export function sellerMetadataTitle(title: string, customDomainStatus: string | null | undefined): string | { absolute: string } {
+  return customDomainStatus === "verified" ? { absolute: title } : title;
+}

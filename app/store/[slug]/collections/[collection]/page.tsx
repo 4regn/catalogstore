@@ -4,7 +4,7 @@ import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
-import { canonicalStoreUrlForRequest } from "../../../../../lib/store-canonical-server";
+import { canonicalStoreUrlForRequest, sellerMetadataTitle } from "../../../../../lib/store-canonical-server";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import { fetchAllRows } from "../../../../../lib/fetch-all-rows";
@@ -112,7 +112,7 @@ export async function generateMetadata({
   const canonical = canonicalStoreUrlForRequest(slug, seller.custom_domain, seller.custom_domain_status, `/collections/${collection}`);
 
   return {
-    title,
+    title: sellerMetadataTitle(title, seller.custom_domain_status),
     description,
     alternates: { canonical },
     openGraph: { title, description },

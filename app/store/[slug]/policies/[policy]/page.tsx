@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { supabaseAdmin } from "../../../../../lib/supabase-admin";
 import { isStoreSubdomainRequest } from "../../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../../lib/store-url";
+import { sellerMetadataTitle } from "../../../../../lib/store-canonical-server";
 import { resolveSellerTemplate } from "../../../../../lib/store-template-access";
 import { trimSellerTemplateConfigs } from "../../../../../lib/template-config";
 import StoreUnavailable from "../../StoreUnavailable";
@@ -49,7 +50,7 @@ export async function generateMetadata({
 
   const { data: seller } = await supabaseAdmin
     .from("sellers")
-    .select("store_name")
+    .select("store_name, custom_domain_status")
     .eq("subdomain", slug)
     .maybeSingle();
 
@@ -58,7 +59,7 @@ export async function generateMetadata({
   const title = `${POLICY_TITLES[policy]} | ${seller.store_name}`;
 
   return {
-    title,
+    title: sellerMetadataTitle(title, seller.custom_domain_status),
     alternates: { canonical: canonicalStoreUrl(slug, `/policies/${policy}`) },
     openGraph: { title },
   };
