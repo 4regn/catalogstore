@@ -20,6 +20,7 @@ import type { RankedCartBoosterProduct } from "../../../lib/cart-booster";
 // Ken Burns) is client-side, inside the "use client" component itself;
 // importing it normally still lets Next SSR its first paint.
 import FourRegnHeroSlideshow, { type FourRegnHeroSlide } from "./FourRegnHeroSlideshow";
+import FourRegnTestimonialsCarousel from "./FourRegnTestimonialsCarousel";
 import {
   FLASH_CAP_GIFT_TAG, FLASH_CAP_COLLECTION, FLASH_CAP_ELIGIBLE_COLLECTIONS, FLASH_CAP_THRESHOLD, FLASH_CAP_END,
   isFlashCapActive, isFlashCapEligibleProduct, computeFlashCapState,
@@ -3254,6 +3255,27 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-about-stats{display:flex;gap:50px;flex-wrap:wrap;margin:40px 0 0;padding-top:28px;border-top:1px solid #333}
 .fr-about-stat-value{font-family:var(--body);font-weight:600;font-size:26px;letter-spacing:-.04em;color:#fff;line-height:1}
 .fr-about-stat-label{font-family:var(--body);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8c8c8c;margin-top:6px}
+.fr-testi{max-width:1180px;margin:0 auto;padding:96px 32px;text-align:center}
+.fr-testi-head{max-width:620px;margin:0 auto 52px}
+.fr-testi-eyebrow{font-family:var(--body);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent, #d64735);margin:0 0 14px}
+.fr-testi-title{font-family:var(--body);font-weight:500;font-size:clamp(32px,4vw,52px);line-height:1;letter-spacing:-.05em;text-transform:uppercase;color:#080808;margin:0 0 16px}
+.fr-testi-sub{font-size:15px;line-height:1.7;color:#666;margin:0}
+.fr-testi-carousel{display:flex;align-items:center;justify-content:center;gap:18px}
+.fr-testi-arrow{flex:none;width:42px;height:42px;border-radius:50%;border:1px solid #ddd;background:#fff;color:#111;display:grid;place-items:center;cursor:pointer;transition:background .15s ease,border-color .15s ease}
+.fr-testi-arrow:hover{background:#f1f1ee;border-color:#bbb}
+.fr-testi-card{width:100%;max-width:820px;display:grid;grid-template-columns:.9fr 1.1fr;align-items:stretch;background:#fff;border:1px solid #e6e5e2;border-radius:22px;box-shadow:0 18px 54px rgba(0,0,0,.06);overflow:hidden;text-align:left}
+.fr-testi-photo{background:#f1f1ee;min-height:340px}
+.fr-testi-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.fr-testi-body{padding:40px 44px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.fr-testi-quote-mark{font-family:Georgia,serif;font-size:54px;line-height:1;color:var(--accent, #d64735);opacity:.35;margin-bottom:6px}
+.fr-testi-quote{font-family:var(--body);font-size:19px;line-height:1.6;color:#1a1a1a;margin:0 0 24px;font-weight:500}
+.fr-testi-byline{display:flex;flex-direction:column;gap:3px;padding-top:18px;border-top:1px solid #eee}
+.fr-testi-byline-name{font-size:12px;font-weight:700;letter-spacing:.03em;color:#111}
+.fr-testi-byline-src{font-size:11px;color:#8c8c8c}
+.fr-testi-dots{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:28px}
+.fr-testi-dot{width:7px;height:7px;padding:0;border-radius:999px;border:0;background:#ddd;cursor:pointer;transition:width .2s ease,background .2s ease}
+.fr-testi-dot.active{width:22px;background:#111}
+.fr-testi-more{display:inline-flex;align-items:center;gap:8px;margin-top:38px;font-family:var(--body);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#111;text-decoration:none;border-bottom:1px solid #111;padding-bottom:3px}
 /* No background override -- every other section (.fr-section, .fr-about)
    is transparent and just shows .fr-root's own --paper-grad through, this
    was the one exception explicitly painted a flat --cream, which read as
@@ -3658,6 +3680,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-cat-grid,.fr-pgrid{grid-template-columns:repeat(2,1fr);gap:14px}
   .fr-about{margin-top:48px;padding:80px 20px;grid-template-columns:1fr;gap:35px}
   .fr-about-stats{gap:32px}
+  .fr-testi{padding:64px 20px}
+  .fr-testi-head{margin-bottom:36px}
+  .fr-testi-carousel{gap:8px}
+  .fr-testi-arrow{width:34px;height:34px}
+  .fr-testi-card{grid-template-columns:1fr;border-radius:18px}
+  .fr-testi-photo{min-height:260px}
+  .fr-testi-body{padding:28px 24px}
+  .fr-testi-quote{font-size:17px}
   .fr-newsletter{padding:65px 20px;grid-template-columns:1fr;gap:40px}
   .fr-nl-form{grid-template-columns:1fr}
   .fr-nl-form button{padding:15px 20px}
@@ -5337,6 +5367,33 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           </EditSection>
         )}
 
+        {/* TESTIMONIALS — WhatsApp screenshots from real customers, only on
+            landing page, directly below the brand-story ABOUT section and
+            above the newsletter (real proof of the "Join the Family" pitch
+            right where the store's founding story is made). */}
+        {isHomeView && (
+          <EditSection id="testimonials" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
+            <section className="fr-testi">
+              <div className="fr-testi-head">
+                <div className="fr-testi-eyebrow">Celebrating 7 years of 4REGN</div>
+                <h2 className="fr-testi-title">Join the {seller.store_name} Family</h2>
+                <p className="fr-testi-sub">
+                  Real reviews from real customers &mdash; the parcels arriving, the fits going on, straight from our WhatsApp.
+                </p>
+              </div>
+              <FourRegnTestimonialsCarousel />
+              <a
+                className="fr-testi-more"
+                href={sp("/testimonials")}
+                onClick={(e) => { e.preventDefault(); navigate(sp("/testimonials")); }}
+              >
+                See all reviews &amp; testimonials
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+              </a>
+            </section>
+          </EditSection>
+        )}
+
         {/* NEWSLETTER — only on landing page */}
         {isHomeView && showNewsletter && (
           <EditSection id="newsletter" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
@@ -5443,6 +5500,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <ul>
                   <li><a href={sp("/policies/shipping")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/shipping")); }}>Shipping</a></li>
                   <li><a href={sp("/policies/returns")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/returns")); }}>Returns & Refunds</a></li>
+                  <li><a href={sp("/testimonials")} onClick={(e) => { e.preventDefault(); navigate(sp("/testimonials")); }}>Reviews & Testimonials</a></li>
                   <li><a href={sp("/policies/privacy")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/privacy")); }}>Privacy Policy</a></li>
                   <li><a href={sp("/policies/terms")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/terms")); }}>Terms of Service</a></li>
                   <li><a href={sp("/policies/contact")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/contact")); }}>Contact</a></li>
