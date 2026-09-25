@@ -66,7 +66,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [{ url: origin, changeFrequency: "daily", priority: 1 }];
   if (seller.subdomain === "4regn") {
     entries.push({ url: `${origin}/stitch-pay-later`, changeFrequency: "monthly", priority: 0.7 });
-    entries.push({ url: `${origin}/testimonials`, changeFrequency: "weekly", priority: 0.6 });
+    entries.push({ url: `${origin}/reviews`, changeFrequency: "weekly", priority: 0.6 });
   }
 
   {
