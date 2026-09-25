@@ -4760,7 +4760,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           // always taking catTokens[0] -- hiding a collection from
           // navigation/browsing but leaving every affected product's own
           // breadcrumb still announcing it defeats the point of hiding it.
-          const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t)) || null;
+          // Also skips the literal "Uncategorized" token -- Shopify's own
+          // default for a product whose Type/category was never set on the
+          // original store, carried straight through the migration. It's
+          // never a real, browsable collection (no seller.collections entry
+          // ever gets created for it, no nav link points at it), but a
+          // product frequently has a REAL collection token elsewhere in the
+          // same comma-joined category string too (appended by the later
+          // Matrixify collections import, see migrate-4regn-collections.ts) --
+          // e.g. "Uncategorized, OVERSIZED PREMIUM TEES". Landing on
+          // "Uncategorized" first, ahead of that real collection, produced
+          // exactly the reported bug: a product reached by browsing Oversized
+          // Premium Tees, whose own breadcrumb then announced "Uncategorized"
+          // instead. Case-insensitive since the exact casing varies by import.
+          const firstRealCategory = catTokens.find((t) => !hiddenCollectionsSet.has(t) && t.toLowerCase() !== "uncategorized") || null;
           const customSizeChart = resolveProductSizeChart(p.size_chart_html, p.description);
           const displayDescription = extractLegacyImportedSizeChart(p.description).description;
           const sizeChartType = getSizeChartType(p);

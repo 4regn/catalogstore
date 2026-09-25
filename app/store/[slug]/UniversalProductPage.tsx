@@ -28,7 +28,12 @@ export default function UniversalProductPage({ seller, product, template, isSubd
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
   const subtotal = cart.reduce((sum, item) => sum + itemPrice(item.product, item.selectedVariants) * item.qty, 0);
   const theme = template === "glass-futuristic" || template === "glass-chrome" ? styles.glass : template === "crown" ? styles.crown : template === "heirloom" ? styles.heirloom : template === "rosefields" ? styles.rosefields : "";
-  const category = (product.category || "").split(",")[0]?.trim();
+  // "Uncategorized" is Shopify's own default for a product whose Type was
+  // never set on the original store, carried through a migration -- never a
+  // real, browsable collection. A product's category string can (and often
+  // does, after a later collections import) contain a real collection token
+  // too, so this skips "Uncategorized" instead of always taking index 0.
+  const category = (product.category || "").split(",").map((c) => c.trim()).find((c) => c && c.toLowerCase() !== "uncategorized");
   const variantKey = useMemo(() => JSON.stringify(selectedVariants), [selectedVariants]);
 
   function selectVariant(group: Variant, option: string) {
