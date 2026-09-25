@@ -94,6 +94,16 @@ function setlaMinDeposit(total: number): number {
   const cents = Math.round(total * 100);
   return Math.ceil(cents * 0.3) / 100;
 }
+// 4REGN's own Lay-Buy uses the identical 30%-minimum math as SETLA's own
+// Laybuy (must stay in sync with lib/four-regn-laybuy.ts's
+// minFourRegnLaybuyDeposit, the server source of truth) -- kept as its
+// own local function rather than sharing setlaMinDeposit so the two
+// systems' display math can never accidentally drift into each other if
+// either one's percentage ever changes independently.
+function fourRegnLaybuyMinDeposit(total: number): number {
+  const cents = Math.round(total * 100);
+  return Math.ceil(cents * 0.3) / 100;
+}
 // "Half and Half" is a real SETLA Pay Later variant -- same credit
 // mechanism (financed against the customer's approved SETLA limit) as Pay
 // in 4 above, just 2 instalments instead of 4: 50% today, 50% in 30 days.
@@ -389,7 +399,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
 
   const [fulfillment, setFulfillment] = useState<"delivery" | "pickup">("delivery");
   const [shippingOption, setShippingOption] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "stitch" | "setla" | "float">("eft");
+  const [paymentMethod, setPaymentMethod] = useState<"eft" | "payfast" | "yoco" | "stitch" | "setla" | "float" | "four-regn-laybuy">("eft");
   const [billingSame, setBillingSame] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -452,6 +462,117 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
     } catch {
       setSetlaLoginError("Something went wrong. Please try again.");
       setSetlaLoginLoading(false);
+    }
+  };
+
+  // 4REGN's own Lay-Buy choice modal -- unlike SETLA (a separate credit
+  // facility with its own login), this requires the storefront's own
+  // customer account (customer_accounts, same system /store/[slug]/account
+  // already uses), since the whole point is the customer later manages
+  // their Lay-Buy balance from that same "My Account" page. The order
+  // itself is placed FIRST (same place-order call every other payment
+  // method uses, which always upserts the customers row this account
+  // system logs into) -- only the deposit-checkout step needs a session,
+  // so this modal only ever appears if that step comes back 401, and the
+  // order id it needs is stashed here rather than re-run through
+  // placeOrder a second time (which would create a duplicate order).
+  const [laybuyModalOpen, setLaybuyModalOpen] = useState(false);
+  const [laybuyModalView, setLaybuyModalView] = useState<"choice" | "login" | "signup-email" | "signup-code">("choice");
+  const [laybuyOrderId, setLaybuyOrderId] = useState("");
+  const [laybuyLoginEmail, setLaybuyLoginEmail] = useState("");
+  const [laybuyLoginPassword, setLaybuyLoginPassword] = useState("");
+  const [laybuySignupEmail, setLaybuySignupEmail] = useState("");
+  const [laybuySignupCode, setLaybuySignupCode] = useState("");
+  const [laybuySignupPassword, setLaybuySignupPassword] = useState("");
+  const [laybuyError, setLaybuyError] = useState("");
+  const [laybuyLoading, setLaybuyLoading] = useState(false);
+
+  // Starts (or resumes) the deposit checkout for an already-placed Lay-Buy
+  // order. Returns "needs-auth" on a 401 so the caller can open the modal
+  // instead of surfacing that as a plain error -- everything else
+  // (success or a real failure) is handled here directly.
+  const startFourRegnLaybuyDeposit = async (orderIdToUse: string): Promise<"redirected" | "needs-auth" | "error"> => {
+    try {
+      const res = await fetch("/api/checkout/four-regn-laybuy-create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: orderIdToUse, slug, returnOrigin: window.location.origin }),
+      });
+      if (res.status === 401) return "needs-auth";
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.redirectUrl) {
+        setOrderError(json.error || "Could not start Lay-Buy checkout. Your order was saved; please contact the seller.");
+        return "error";
+      }
+      window.location.href = json.redirectUrl;
+      return "redirected";
+    } catch {
+      setOrderError("Network error starting Lay-Buy checkout. Your order was saved; please contact the seller.");
+      return "error";
+    }
+  };
+
+  const laybuyLogin = async () => {
+    if (!laybuyLoginEmail.trim() || !laybuyLoginPassword) return;
+    setLaybuyLoading(true);
+    setLaybuyError("");
+    try {
+      const res = await fetch("/api/customer-account/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, email: laybuyLoginEmail.trim(), password: laybuyLoginPassword }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setLaybuyError(json.error || "Could not sign in"); setLaybuyLoading(false); return; }
+      setLaybuyModalOpen(false);
+      await startFourRegnLaybuyDeposit(laybuyOrderId);
+    } catch {
+      setLaybuyError("Something went wrong. Please try again.");
+      setLaybuyLoading(false);
+    }
+  };
+
+  // "Sign up" here is really activation (see /api/customer-account/request-code's
+  // own comment) -- it only works because place-order (already run by the
+  // time this modal can appear) guarantees a customers row now exists for
+  // this email, so there's nothing new to create, just a password to set.
+  const laybuySendCode = async () => {
+    if (!laybuySignupEmail.trim()) return;
+    setLaybuyLoading(true);
+    setLaybuyError("");
+    try {
+      const res = await fetch("/api/customer-account/request-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, email: laybuySignupEmail.trim() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      setLaybuyLoading(false);
+      if (!res.ok) { setLaybuyError(json.error || "Could not send a confirmation code"); return; }
+      setLaybuyModalView("signup-code");
+    } catch {
+      setLaybuyError("Something went wrong. Please try again.");
+      setLaybuyLoading(false);
+    }
+  };
+
+  const laybuyActivate = async () => {
+    if (!/^\d{6}$/.test(laybuySignupCode.trim()) || !laybuySignupPassword) return;
+    setLaybuyLoading(true);
+    setLaybuyError("");
+    try {
+      const res = await fetch("/api/customer-account/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, email: laybuySignupEmail.trim(), code: laybuySignupCode.trim(), password: laybuySignupPassword }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setLaybuyError(json.error || "Could not activate your account"); setLaybuyLoading(false); return; }
+      setLaybuyModalOpen(false);
+      await startFourRegnLaybuyDeposit(laybuyOrderId);
+    } catch {
+      setLaybuyError("Something went wrong. Please try again.");
+      setLaybuyLoading(false);
     }
   };
 
@@ -1340,7 +1461,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
       // which already handles SETLA instalment/laybuy events too)
       // confirms payment actually went through, so the seller never gets
       // a "New Order!" email for a payment that failed or was abandoned.
-      if (effectiveMethod !== "payfast" && effectiveMethod !== "yoco" && effectiveMethod !== "stitch" && effectiveMethod !== "float" && effectiveMethod !== "setla") {
+      if (effectiveMethod !== "payfast" && effectiveMethod !== "yoco" && effectiveMethod !== "stitch" && effectiveMethod !== "float" && effectiveMethod !== "setla" && effectiveMethod !== "four-regn-laybuy") {
         fetch("/api/notify-order", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1459,6 +1580,20 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
           return;
         }
         window.location.href = "/setla/checkout.html";
+        return;
+      }
+
+      if (effectiveMethod === "four-regn-laybuy") {
+        // The order is already placed at this point (same as every other
+        // method) -- just start (or, if not signed in, queue behind the
+        // Lay-Buy modal for) the deposit checkout for it.
+        const result = await startFourRegnLaybuyDeposit(orderId);
+        if (result === "needs-auth") {
+          setLaybuyOrderId(orderId);
+          setLaybuyModalView("choice");
+          setLaybuyError("");
+          setLaybuyModalOpen(true);
+        }
         return;
       }
     } catch (e: any) {
@@ -1893,6 +2028,27 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                     </div>
                   )}
 
+                  {/* 4REGN's own, simpler Lay-Buy -- not part of
+                      checkout_config.payment_method_order (it isn't a
+                      seller-configurable/reorderable method, always shown
+                      for 4regn), so it's pinned past every method that IS
+                      reorderable rather than competing for a position
+                      within that ordering. */}
+                  <div className={"choice" + (paymentMethod === "four-regn-laybuy" ? " active" : "")} style={{ order: 10 }}>
+                    <div className="choice-row" onClick={() => setPaymentMethod("four-regn-laybuy")}>
+                      <div className="radio"></div>
+                      <div className="choice-main">
+                        <div className="choice-name">4REGN Lay-Buy</div>
+                        <div className="choice-sub">Pay a deposit today, clear the rest whenever you like from your account. No credit check.</div>
+                      </div>
+                    </div>
+                    {paymentMethod === "four-regn-laybuy" && (
+                      <div className="payment-note">
+                        Pay a R{fourRegnLaybuyMinDeposit(total).toFixed(0)} deposit today (min. 30%) to reserve your order, then pay off the rest &mdash; any amount, any time &mdash; from your 4REGN account. Your order ships once it&rsquo;s fully paid.
+                      </div>
+                    )}
+                  </div>
+
                   {cc.float_enabled && (
                     <div className={"choice" + (paymentMethod === "float" ? " active" : "")} style={{ order: paymentDisplayOrder("float") }}>
                       <div className="choice-row" onClick={() => setPaymentMethod("float")}>
@@ -1949,7 +2105,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                   }}
                   disabled={placing}
                 >
-                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : paymentMethod === "float" ? "Continue to Float · R" + total.toFixed(0) : "Pay now · R" + total.toFixed(0)}
+                  {placing ? "Placing..." : paymentMethod === "setla" ? "Continue to SETLA · R" + total.toFixed(0) : paymentMethod === "float" ? "Continue to Float · R" + total.toFixed(0) : paymentMethod === "four-regn-laybuy" ? "Continue to Lay-Buy · R" + fourRegnLaybuyMinDeposit(total).toFixed(0) + " deposit" : "Pay now · R" + total.toFixed(0)}
                 </button>
               </div>
               <div className="trust-row">
@@ -2115,6 +2271,81 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                     {setlaLoginError && <p className="promo-error">{setlaLoginError}</p>}
                     <button className="pay-btn setla-modal-login-btn" onClick={setlaLogin} disabled={setlaLoginLoading || !setlaLoginEmail.trim() || !setlaLoginPassword}>
                       {setlaLoginLoading ? "Signing in..." : "Log in & continue"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {laybuyModalOpen && (
+            <div className="setla-modal-overlay" onClick={() => { if (!laybuyLoading) setLaybuyModalOpen(false); }}>
+              <div className="setla-modal" onClick={(e) => e.stopPropagation()}>
+                <button className="setla-modal-close" onClick={() => setLaybuyModalOpen(false)} aria-label="Close">&times;</button>
+                <div className="setla-modal-amount">
+                  <span>Deposit due today</span>
+                  <strong>R{fourRegnLaybuyMinDeposit(total).toLocaleString("en-ZA")}</strong>
+                </div>
+
+                {laybuyModalView === "choice" ? (
+                  <div className="setla-modal-choices">
+                    <button className="setla-modal-option primary" onClick={() => { setLaybuyModalView("login"); setLaybuyError(""); }}>
+                      <span className="opt-title">Already have a 4REGN account?</span>
+                      <span className="opt-sub">Log in to continue with Lay-Buy</span>
+                    </button>
+                    <button className="setla-modal-option" onClick={() => { setLaybuySignupEmail(email); setLaybuyModalView("signup-email"); setLaybuyError(""); }}>
+                      <span className="opt-title">First time here?</span>
+                      <span className="opt-sub">Create your account to start Lay-Buy</span>
+                    </button>
+                    {cc.yoco_enabled && (
+                      <button
+                        className="setla-modal-option"
+                        disabled={laybuyLoading || placing}
+                        onClick={async () => {
+                          setLaybuyModalOpen(false);
+                          const ycRes = await fetch("/api/checkout/yoco-redirect", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ orderId: laybuyOrderId, slug, returnOrigin: window.location.origin }),
+                          });
+                          const ycJson = await ycRes.json().catch(() => ({}));
+                          if (!ycRes.ok || !ycJson.redirectUrl) { setOrderError(ycJson.error || "Could not start card payment."); return; }
+                          window.location.href = ycJson.redirectUrl;
+                        }}
+                      >
+                        <span className="opt-title">Pay in full instead</span>
+                        <span className="opt-sub">Skip Lay-Buy and complete payment now via card &mdash; R{total.toLocaleString("en-ZA")}</span>
+                      </button>
+                    )}
+                  </div>
+                ) : laybuyModalView === "login" ? (
+                  <div className="setla-modal-login">
+                    <button className="setla-modal-back" onClick={() => setLaybuyModalView("choice")}>&larr; Back</button>
+                    <div className="field wide"><label>Email address</label><input autoComplete="email" type="email" value={laybuyLoginEmail} onChange={(e) => setLaybuyLoginEmail(e.target.value)} /></div>
+                    <div className="field wide"><label>Password</label><input autoComplete="current-password" type="password" value={laybuyLoginPassword} onChange={(e) => setLaybuyLoginPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") laybuyLogin(); }} /></div>
+                    {laybuyError && <p className="promo-error">{laybuyError}</p>}
+                    <button className="pay-btn setla-modal-login-btn" onClick={laybuyLogin} disabled={laybuyLoading || !laybuyLoginEmail.trim() || !laybuyLoginPassword}>
+                      {laybuyLoading ? "Signing in..." : "Log in & continue"}
+                    </button>
+                  </div>
+                ) : laybuyModalView === "signup-email" ? (
+                  <div className="setla-modal-login">
+                    <button className="setla-modal-back" onClick={() => setLaybuyModalView("choice")}>&larr; Back</button>
+                    <div className="field wide"><label>Email address</label><input autoComplete="email" type="email" value={laybuySignupEmail} onChange={(e) => setLaybuySignupEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") laybuySendCode(); }} /></div>
+                    {laybuyError && <p className="promo-error">{laybuyError}</p>}
+                    <button className="pay-btn setla-modal-login-btn" onClick={laybuySendCode} disabled={laybuyLoading || !laybuySignupEmail.trim()}>
+                      {laybuyLoading ? "Sending code..." : "Send confirmation code"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="setla-modal-login">
+                    <button className="setla-modal-back" onClick={() => setLaybuyModalView("signup-email")}>&larr; Back</button>
+                    <p className="opt-sub" style={{ marginBottom: 12 }}>We sent a 6-digit code to {laybuySignupEmail}. Enter it below and choose a password to finish creating your account.</p>
+                    <div className="field wide"><label>Confirmation code</label><input inputMode="numeric" maxLength={6} value={laybuySignupCode} onChange={(e) => setLaybuySignupCode(e.target.value.replace(/\D/g, ""))} /></div>
+                    <div className="field wide"><label>Choose a password</label><input autoComplete="new-password" type="password" value={laybuySignupPassword} onChange={(e) => setLaybuySignupPassword(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") laybuyActivate(); }} /></div>
+                    {laybuyError && <p className="promo-error">{laybuyError}</p>}
+                    <button className="pay-btn setla-modal-login-btn" onClick={laybuyActivate} disabled={laybuyLoading || !/^\d{6}$/.test(laybuySignupCode.trim()) || !laybuySignupPassword}>
+                      {laybuyLoading ? "Activating..." : "Create account & continue"}
                     </button>
                   </div>
                 )}

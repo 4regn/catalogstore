@@ -3,11 +3,12 @@ import { getAdmin } from "../../../../lib/supabase-admin";
 import { getYocoCheckout, isYocoCheckoutPaid, YOCO_TERMINAL_FAILURE_STATUSES } from "../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../lib/unik-orders";
 import { activateSetlaPlanAfterPayment, setlaFirstChargeAmountCents, type SetlaFirstChargeMeta } from "../../../../lib/setla-instalments";
+import { activateFourRegnLaybuyPlan } from "../../../../lib/four-regn-laybuy";
 import { getStitchPaymentLink } from "../../../../lib/stitch";
 
 export const dynamic = "force-dynamic";
 
-const ORDER_SELECT = "id, seller_id, order_number, external_id, customer_name, customer_email, customer_phone, items, total, shipping_cost, shipping_option, shipping_address, fulfillment_method, payment_method, payment_status, status, discount_code, yoco_checkout_id, stitch_link_id, setla_pending_stitch_meta, created_at";
+const ORDER_SELECT = "id, seller_id, order_number, external_id, customer_name, customer_email, customer_phone, items, total, shipping_cost, shipping_option, shipping_address, fulfillment_method, payment_method, payment_status, status, discount_code, yoco_checkout_id, stitch_link_id, setla_pending_stitch_meta, four_regn_laybuy_pending_meta, created_at";
 
 type CheckoutOrder = {
   id: string;
@@ -30,15 +31,17 @@ type CheckoutOrder = {
   yoco_checkout_id?: string | null;
   stitch_link_id?: string | null;
   setla_pending_stitch_meta?: unknown;
+  four_regn_laybuy_pending_meta?: unknown;
   created_at?: string | null;
 };
 
 function publicOrder(order: CheckoutOrder) {
-  const safeOrder = { ...order } as Omit<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "stitch_link_id" | "setla_pending_stitch_meta"> & Partial<Pick<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "stitch_link_id" | "setla_pending_stitch_meta">>;
+  const safeOrder = { ...order } as Omit<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "stitch_link_id" | "setla_pending_stitch_meta" | "four_regn_laybuy_pending_meta"> & Partial<Pick<CheckoutOrder, "seller_id" | "yoco_checkout_id" | "stitch_link_id" | "setla_pending_stitch_meta" | "four_regn_laybuy_pending_meta">>;
   delete safeOrder.seller_id;
   delete safeOrder.yoco_checkout_id;
   delete safeOrder.stitch_link_id;
   delete safeOrder.setla_pending_stitch_meta;
+  delete safeOrder.four_regn_laybuy_pending_meta;
   return safeOrder;
 }
 
@@ -83,13 +86,23 @@ export async function GET(req: NextRequest) {
         const setlaMeta = order.payment_method === "setla" && (order.setla_pending_stitch_meta as SetlaFirstChargeMeta | null)?.kind === "setla_first_charge"
           ? order.setla_pending_stitch_meta as SetlaFirstChargeMeta
           : null;
+        // Same reasoning as setlaMeta above -- the 4REGN Lay-Buy deposit
+        // checkout is for the deposit amount, not the order's own total,
+        // so the self-heal path needs to know that expected amount too
+        // (see four_regn_laybuy_pending_meta's own migration comment).
+        const laybuyMeta = order.four_regn_laybuy_pending_meta as { kind?: string; orderId?: string; depositAmountCents?: number } | null;
+        const isLaybuyDeposit = laybuyMeta?.kind === "four_regn_laybuy_deposit";
         const expectedCents = setlaMeta
           ? setlaFirstChargeAmountCents(setlaMeta)
+          : isLaybuyDeposit
+          ? Number(laybuyMeta!.depositAmountCents) || 0
           : Math.round(Number(order.total || 0) * 100);
         const amountMatches = !checkout.amount || Math.abs(expectedCents - Number(checkout.amount || 0)) <= 1;
         if (amountMatches) {
           const result = setlaMeta
             ? ((await activateSetlaPlanAfterPayment(admin, setlaMeta, checkout.paymentId, Number(checkout.amount) || expectedCents, null)).ok ? "paid" : "update_failed")
+            : isLaybuyDeposit
+            ? ((await activateFourRegnLaybuyPlan(admin, { orderId: order.id, depositAmountCents: expectedCents }, checkout.paymentId, Number(checkout.amount) || expectedCents, null)).ok ? "paid" : "update_failed")
             : await markUnikOrderPaid(admin, order, checkout.paymentId, null, "yoco");
           if (result === "paid" || result === "already_paid") {
             const { data: refreshed } = await admin

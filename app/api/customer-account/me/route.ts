@@ -28,11 +28,24 @@ export async function GET(req: NextRequest) {
       .eq("seller_id", auth.seller.id)
       .ilike("customer_email", normalizedEmail);
   }
+  // Lay-Buy orders stay payment_status "partial"/"pending" until fully
+  // paid off, so the plain paid-or-shipped filter below would hide them
+  // from "My Orders" entirely until the balance clears -- fetch any order
+  // with an active/paid_off plan up front and fold its id into that filter.
+  const laybuyPlansResult = auth.seller.subdomain === "4regn"
+    ? await admin.from("four_regn_laybuy_plans")
+        .select("id, order_id, total_amount, paid_amount, status, created_at")
+        .eq("seller_id", auth.seller.id)
+        .eq("customer_id", auth.account.customer_id)
+        .order("created_at", { ascending: false })
+    : { data: [] as any[] };
+  const laybuyOrderIds = (laybuyPlansResult.data || []).map((p: any) => p.order_id);
+
   const ordersResult = await admin.from("orders")
     .select("id, order_number, external_id, items, total, status, payment_status, shipping_option, shipping_address, created_at, tracking_updated_at, customer_tracking_note")
     .eq("seller_id", auth.seller.id)
     .eq("customer_id", auth.account.customer_id)
-    .or("payment_status.eq.paid,status.in.(confirmed,processing,shipped,picked_up,in_transit,out_for_delivery,delivered)")
+    .or(`payment_status.eq.paid,status.in.(confirmed,processing,shipped,picked_up,in_transit,out_for_delivery,delivered)${laybuyOrderIds.length ? `,id.in.(${laybuyOrderIds.join(",")})` : ""}`)
     .order("created_at", { ascending: false })
     .limit(50);
   const visibleOrders = (ordersResult.data || []).filter((order: any) => auth.seller.subdomain !== "4regn" || isNewFourRegnTrackingOrder(order));
@@ -52,9 +65,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const ordersById = new Map(visibleOrders.map((o: any) => [o.id, o]));
+  const laybuyPlans = (laybuyPlansResult.data || [])
+    .filter((plan: any) => ordersById.has(plan.order_id))
+    .map((plan: any) => ({ ...plan, order: ordersById.get(plan.order_id) }));
+
   return NextResponse.json({
     customer: customerResult.data,
     orders: visibleOrders.map((order: any) => ({ ...order, tracking: auth.seller.subdomain === "4regn" ? buildFourRegnTracking(order, historyByOrder.get(order.id) || []) : null })),
     wishlist: (wishlistResult.data || []).map((row: any) => row.products).filter(Boolean),
+    laybuyPlans,
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

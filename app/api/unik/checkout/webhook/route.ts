@@ -3,6 +3,7 @@ import { getAdmin } from "../../../../../lib/supabase-admin";
 import { verifyYocoWebhookSignature } from "../../../../../lib/yoco";
 import { markUnikOrderPaid, markUnikOrderFailed } from "../../../../../lib/unik-orders";
 import { markSetlaInstalmentPaid, markSetlaInstalmentFailed, markLaybuyPaymentPaid, markLaybuyPaymentFailed, activateSetlaPlanAfterPayment, type SetlaFirstChargeMeta } from "../../../../../lib/setla-instalments";
+import { activateFourRegnLaybuyPlan, markFourRegnLaybuyPaymentPaid, markFourRegnLaybuyPaymentFailed } from "../../../../../lib/four-regn-laybuy";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +49,24 @@ export async function POST(req: NextRequest) {
     if (failedPayload.metadata?.kind === "setla_first_charge") {
       const orderId: string | undefined = failedPayload.metadata?.orderId;
       if (orderId) await markUnikOrderFailed(getAdmin(), orderId);
+      return NextResponse.json({ status: "ok" });
+    }
+    // Same reasoning as the SETLA first-charge branch above, for 4REGN's
+    // own (SETLA-independent) Lay-Buy deposit -- nothing was created yet,
+    // so just fail the order.
+    if (failedPayload.metadata?.kind === "four_regn_laybuy_deposit") {
+      const orderId: string | undefined = failedPayload.metadata?.orderId;
+      if (orderId) await markUnikOrderFailed(getAdmin(), orderId);
+      return NextResponse.json({ status: "ok" });
+    }
+    // A 4REGN Lay-Buy top-up is its own one-off Yoco checkout, same
+    // reasoning as the SETLA laybuyPaymentId branch below -- a distinct
+    // metadata key (not laybuyPaymentId) so this never collides with
+    // SETLA's own Laybuy top-ups, which live in a completely different
+    // table.
+    const failedFourRegnLaybuyPaymentId: string | undefined = failedPayload.metadata?.fourRegnLaybuyPaymentId;
+    if (failedFourRegnLaybuyPaymentId) {
+      await markFourRegnLaybuyPaymentFailed(getAdmin(), failedFourRegnLaybuyPaymentId);
       return NextResponse.json({ status: "ok" });
     }
     // A SETLA instalment checkout is a separate one-off Yoco checkout from
@@ -132,6 +151,44 @@ export async function POST(req: NextRequest) {
     const result = await markSetlaInstalmentPaid(getAdmin(), { instalmentId, paymentId: instalmentPaymentId, eventId: event.id || null });
     if (!result.ok) {
       console.error("SETLA Yoco webhook: markSetlaInstalmentPaid failed", { instalmentId, error: result.error });
+      return NextResponse.json({ status: "error" }, { status: 500 });
+    }
+    return NextResponse.json({ status: "ok" });
+  }
+
+  // 4REGN's own (SETLA-independent) Lay-Buy deposit -- same "create only
+  // on confirmed payment" reasoning as the setla_first_charge branch
+  // above, checked before the order lookup for the same reason.
+  if (payload.metadata?.kind === "four_regn_laybuy_deposit") {
+    const paymentId: string | undefined = payload.id;
+    const amountCents = Number(payload.amount) || 0;
+    const orderId: string | undefined = payload.metadata?.orderId;
+    const depositAmountCents = Number(payload.metadata?.depositAmountCents) || 0;
+    if (!paymentId || !orderId || !depositAmountCents) {
+      console.error("4REGN Lay-Buy Yoco webhook: deposit payment.succeeded missing identifiers", { metadata: payload.metadata });
+      return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
+    }
+    const result = await activateFourRegnLaybuyPlan(getAdmin(), { orderId, depositAmountCents }, paymentId, amountCents, event.id || null);
+    if (!result.ok) {
+      console.error("4REGN Lay-Buy Yoco webhook: activateFourRegnLaybuyPlan failed", { orderId, error: result.error });
+      return NextResponse.json({ status: "error" }, { status: 500 });
+    }
+    return NextResponse.json({ status: "ok" });
+  }
+
+  // A 4REGN Lay-Buy top-up (any payment after the deposit) is its own
+  // one-off Yoco checkout, distinct metadata key from SETLA's own
+  // laybuyPaymentId so the two never collide.
+  const fourRegnLaybuyPaymentId: string | undefined = payload.metadata?.fourRegnLaybuyPaymentId;
+  if (fourRegnLaybuyPaymentId) {
+    const fourRegnLaybuyPaymentProviderId: string | undefined = payload.id;
+    if (!fourRegnLaybuyPaymentProviderId) {
+      console.error("4REGN Lay-Buy Yoco webhook: top-up payment.succeeded missing payment id", { fourRegnLaybuyPaymentId });
+      return NextResponse.json({ status: "error", reason: "missing identifiers" }, { status: 400 });
+    }
+    const result = await markFourRegnLaybuyPaymentPaid(getAdmin(), { paymentId: fourRegnLaybuyPaymentId, providerReference: fourRegnLaybuyPaymentProviderId, eventId: event.id || null });
+    if (!result.ok) {
+      console.error("4REGN Lay-Buy Yoco webhook: markFourRegnLaybuyPaymentPaid failed", { fourRegnLaybuyPaymentId, error: result.error });
       return NextResponse.json({ status: "error" }, { status: 500 });
     }
     return NextResponse.json({ status: "ok" });
