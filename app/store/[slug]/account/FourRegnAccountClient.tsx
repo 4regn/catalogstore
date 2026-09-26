@@ -128,7 +128,7 @@ export default function FourRegnAccountClient({ seller }: { seller: Seller }) {
               {plan.status === "active" && plan.expires_at && (
                 <div className="laybuydeadline">
                   {daysLeft !== null && daysLeft <= 30 ? <strong>{daysLeft > 0 ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : "Due today"}</strong> : null}
-                  {" "}Pay off by {new Date(plan.expires_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })}
+                  {" "}Pay off by {new Date(plan.expires_at).toLocaleDateString("en-ZA", { day: "numeric", month: "long", year: "numeric" })} &mdash; your order ships once the balance is R0.
                 </div>
               )}
               {plan.status === "expired" && (
