@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { getTrafficAttribution } from "./traffic-attribution";
 
 const VISITOR_ID_KEY = "cs-visitor-id";
 const PING_INTERVAL_MS = 20_000;
@@ -113,6 +114,7 @@ export function useLiveVisitorPing(
 
     const send = (eventType?: "page_view" | "add_to_cart" | "reached_checkout" | "session_activity") => {
       const status = checkout ? "checkout" : cartItemCount > 0 ? "active_cart" : "browsing";
+      const attribution = getTrafficAttribution();
       fetch("/api/storefront/heartbeat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,6 +130,7 @@ export function useLiveVisitorPing(
           customerEmail: customerEmail || undefined,
           cartItems: cartItems.slice(0, 20),
           eventType,
+          attribution,
         }),
       }).catch(() => {});
     };

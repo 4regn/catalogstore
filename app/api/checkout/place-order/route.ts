@@ -51,7 +51,31 @@ export async function POST(req: NextRequest) {
     shippingOptionIndex,
     paymentMethod,
     discountCode,
+    attribution,
   } = body || {};
+
+  // First-touch traffic source (see lib/traffic-attribution.ts) -- the
+  // client sends its own cached value rather than this route looking it up
+  // from store_visitor_attribution, so an order is still attributed even if
+  // this is the visitor's very first request and no heartbeat has landed
+  // yet. Denormalized directly onto the order (not just joined later) so
+  // it's a permanent fact about the order, immune to that table being
+  // pruned or the visitor's attribution somehow changing afterwards.
+  const str = (x: unknown, max: number) => (typeof x === "string" && x.trim() ? x.trim().slice(0, max) : null);
+  const trafficSource = attribution && typeof attribution === "object" ? str((attribution as any).source, 40) : null;
+  const trafficAttribution = trafficSource
+    ? {
+        source: trafficSource,
+        referrer: str((attribution as any).referrer, 600),
+        referrerHost: str((attribution as any).referrerHost, 200),
+        utmSource: str((attribution as any).utmSource, 100),
+        utmMedium: str((attribution as any).utmMedium, 100),
+        utmCampaign: str((attribution as any).utmCampaign, 100),
+        utmTerm: str((attribution as any).utmTerm, 100),
+        utmContent: str((attribution as any).utmContent, 100),
+        landingPath: str((attribution as any).landingPath, 300),
+      }
+    : null;
 
   if (typeof slug !== "string" || !Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: "Missing slug or items" }, { status: 400 });
@@ -346,8 +370,10 @@ export async function POST(req: NextRequest) {
     estimated_delivery_at: deliveryEstimate.toAt,
     estimated_delivery_manual_override: false,
   } : {};
+  const tier4 = trafficSource ? { traffic_source: trafficSource, traffic_attribution: trafficAttribution } : {};
 
   const attempts = [
+    { ...coreRow, ...tier1, ...tier2, ...tier3, ...tier4 },
     { ...coreRow, ...tier1, ...tier2, ...tier3 },
     { ...coreRow, ...tier1, ...tier2 },
     { ...coreRow, ...tier1 },

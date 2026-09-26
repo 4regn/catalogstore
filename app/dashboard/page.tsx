@@ -15,7 +15,7 @@ import SupportChat from "../components/SupportChat";
 import CustomersPanel from "./components/CustomersPanel";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
-import type { FullAnalytics, CheckoutFunnelAnalytics } from "../../lib/store-analytics";
+import type { FullAnalytics, CheckoutFunnelAnalytics, TrafficSourceAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../lib/order-payment-methods";
@@ -484,6 +484,8 @@ export default function Dashboard() {
   const [funnelCustomStart, setFunnelCustomStart] = useState("");
   const [funnelCustomEnd, setFunnelCustomEnd] = useState("");
   const [expandedLeadVisitorId, setExpandedLeadVisitorId] = useState("");
+  const [trafficSourceAnalytics, setTrafficSourceAnalytics] = useState<TrafficSourceAnalytics | null>(null);
+  const [trafficSourceLoading, setTrafficSourceLoading] = useState(false);
   const funnelRange = useMemo(() => {
     const today = sastToday();
     const addDays = (d: string, n: number) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86_400_000).toISOString().slice(0, 10);
@@ -1239,6 +1241,26 @@ export default function Dashboard() {
         if (res.ok) setCheckoutFunnel(data);
       } catch {}
       setCheckoutFunnelLoading(false);
+    })();
+  }, [loading, tab, funnelRange.startDate, funnelRange.endDate]);
+
+  // Where visitors/orders actually come from -- shares the same
+  // Today/This Week/This Month/Custom range picker as the checkout funnel
+  // card above (funnelRange) rather than a second, duplicate one, since a
+  // seller reading "who dropped off this week" almost always wants to know
+  // where those same visitors came from too. See getTrafficSourceAnalytics.
+  useEffect(() => {
+    if (loading || tab !== "analytics") return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setTrafficSourceLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/traffic-source-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, startDate: funnelRange.startDate, endDate: funnelRange.endDate }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setTrafficSourceAnalytics(data);
+      } catch {}
+      setTrafficSourceLoading(false);
     })();
   }, [loading, tab, funnelRange.startDate, funnelRange.endDate]);
 
@@ -5732,6 +5754,87 @@ export default function Dashboard() {
                   )}
                   {checkoutFunnelLoading && !checkoutFunnel && (
                     <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading checkout funnel&hellip;</div>
+                  )}
+
+                  {/* TRAFFIC SOURCES -- where visitors and orders actually
+                      come from (Google, WhatsApp, Instagram, a UTM-tagged
+                      link, or someone just typing the URL directly). Shares
+                      the same range picker as the checkout funnel card above
+                      -- see getTrafficSourceAnalytics for exactly how
+                      visitors vs. orders are attributed. */}
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>
+                    Traffic sources &middot; {funnelRange.startDate === funnelRange.endDate ? funnelRange.startDate : `${funnelRange.startDate} to ${funnelRange.endDate}`}
+                  </div>
+                  {trafficSourceAnalytics && (() => {
+                    const ts = trafficSourceAnalytics;
+                    const sourceLabel = (key: string) => {
+                      const known: Record<string, string> = { google: "Google", whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube", bing: "Bing", duckduckgo: "DuckDuckGo", yahoo: "Yahoo", twitter: "Twitter / X", pinterest: "Pinterest", snapchat: "Snapchat", direct: "Direct (typed URL / bookmark)", referral: "Other website", unknown: "Unknown" };
+                      return known[key] || key.charAt(0).toUpperCase() + key.slice(1);
+                    };
+                    return (
+                    <>
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
+                        {[
+                          { label: "New visitors", value: ts.totals.visitors.toLocaleString("en-ZA"), color: "#7aa2ff" },
+                          { label: "Orders placed", value: ts.totals.orders.toLocaleString("en-ZA"), color: "#fbbf24" },
+                          { label: "Orders paid", value: ts.totals.paidOrders.toLocaleString("en-ZA"), color: "#22c55e" },
+                          { label: "Revenue", value: "R" + ts.totals.revenue.toLocaleString("en-ZA", { maximumFractionDigits: 0 }), color: "#22c55e" },
+                        ].map((stat) => (
+                          <div key={stat.label} style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                            <div style={{ fontSize: 22, fontWeight: 900, color: stat.color, letterSpacing: "-0.02em" }}>{stat.value}</div>
+                            <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>{stat.label}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {ts.sources.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No traffic recorded in this range yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                          {ts.sources.map((s) => {
+                            const max = Math.max(1, ...ts.sources.map((x) => x.visitors));
+                            return (
+                              <div key={s.source}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12, marginBottom: 3, flexWrap: "wrap" as const, gap: 6 }}>
+                                  <span style={{ fontWeight: 700, color: "var(--text)" }}>{sourceLabel(s.source)}</span>
+                                  <span style={{ color: "var(--muted)", fontSize: 11 }}>{s.visitors} visitor{s.visitors === 1 ? "" : "s"} &middot; {s.orders} order{s.orders === 1 ? "" : "s"} &middot; R{s.revenue.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}</span>
+                                </div>
+                                <div style={{ height: 6, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                  <div style={{ width: `${Math.max(4, Math.round((s.visitors / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #7aa2ff, #60a5fa)", borderRadius: 3 }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap" as const, gap: 8 }}>
+                        <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>Recent orders by source</div>
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{ts.recentOrders.length} order{ts.recentOrders.length === 1 ? "" : "s"}</span>
+                      </div>
+                      {ts.recentOrders.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No orders placed in this range yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column" as const, gap: 8, maxHeight: 420, overflowY: "auto" as const }}>
+                          {ts.recentOrders.slice(0, 50).map((o) => (
+                            <div key={o.orderId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 10 }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text)", overflow: "hidden" as const, textOverflow: "ellipsis" as const, whiteSpace: "nowrap" as const }}>{o.customerName || o.customerEmail || "Unknown"} {o.orderReference ? <span style={{ fontWeight: 400, color: "var(--muted)" }}>&middot; {o.orderReference}</span> : null}</div>
+                                <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>{new Date(o.timestamp).toLocaleString("en-ZA")} &middot; R{o.total.toFixed(0)}</div>
+                              </div>
+                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.05em", padding: "5px 10px", borderRadius: 100, background: "var(--panel)", color: o.paymentStatus === "paid" ? "#22c55e" : "var(--muted-2)", flexShrink: 0 }}>{sourceLabel(o.source)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    </>
+                    );
+                  })()}
+                  {trafficSourceLoading && !trafficSourceAnalytics && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading traffic sources&hellip;</div>
                   )}
 
                   {/* BEST SELLERS */}

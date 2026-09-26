@@ -706,6 +706,111 @@ export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId
   };
 }
 
+export type TrafficSourceRow = { source: string; visitors: number; orders: number; paidOrders: number; revenue: number };
+export type TrafficSourceOrder = { orderId: string; orderReference: string | null; customerName: string | null; customerEmail: string | null; total: number; paymentStatus: string; source: string; timestamp: string };
+export type TrafficSourceAnalytics = {
+  rangeDays: number;
+  totals: { visitors: number; orders: number; paidOrders: number; revenue: number };
+  sources: TrafficSourceRow[];
+  dailySeries: { date: string; visitors: number; orders: number }[];
+  recentOrders: TrafficSourceOrder[];
+};
+
+const TRAFFIC_ORDERS_LIMIT = 200;
+
+/* Where visitors and orders actually come from -- Google, WhatsApp,
+   Instagram, a raw UTM-tagged link, or someone just typing the URL
+   directly ("direct"). Two independent signals, both first-touch and both
+   captured client-side (see lib/traffic-attribution.ts), read here rather
+   than joined at query time so this still works even if a visitor's
+   attribution row is later pruned:
+
+   - store_visitor_attribution: one row per visitor, written by the very
+     first heartbeat that visitor ever sends (ignoreDuplicates on
+     (seller_id, visitor_id) enforces "first touch wins"). Counted here by
+     first_seen_at falling inside the selected range, i.e. "new visitors
+     from this source during this window".
+   - orders.traffic_source / traffic_attribution: denormalized onto the
+     order itself at place-order time from the client's own cached
+     attribution value, so an order's source is a permanent fact about
+     that order that survives independently of the table above.
+
+   A visitor's first-touch source and the source recorded on an order they
+   place later in the same session should usually agree, but this
+   deliberately doesn't require it -- an order with no traffic_source
+   (placed before this feature shipped, or by a return visitor whose
+   original attribution row predates the retention window) simply buckets
+   under "unknown" rather than being silently dropped from the totals. */
+export async function getTrafficSourceAnalytics(admin: SupabaseClient, sellerId: string, range: { startDate: string; endDate: string }): Promise<TrafficSourceAnalytics> {
+  const MAX_RANGE_DAYS = 366;
+  const dateStrings = dateStringsBetween(range.startDate, range.endDate).slice(-MAX_RANGE_DAYS);
+  const startDate = dateStrings[0];
+  const endDate = dateStrings[dateStrings.length - 1];
+  const rangeStartIso = sastDayStartUtc(startDate).toISOString();
+  const rangeEndIso = new Date(sastDayStartUtc(endDate).getTime() + 86_400_000).toISOString();
+
+  const [attributionRows, orders] = await Promise.all([
+    fetchAllRows<{ visitor_id: string; source: string; first_seen_at: string }>(
+      admin, "store_visitor_attribution", "visitor_id, source, first_seen_at", (q) =>
+        q.eq("seller_id", sellerId).gte("first_seen_at", rangeStartIso).lt("first_seen_at", rangeEndIso)
+    ),
+    fetchAllRows<{ id: string; order_number: number | string | null; external_id: string | null; customer_name: string | null; customer_email: string | null; total: number; payment_status: string; traffic_source: string | null; created_at: string }>(
+      admin, "orders", "id, order_number, external_id, customer_name, customer_email, total, payment_status, traffic_source, created_at", (q) =>
+        q.eq("seller_id", sellerId).gte("created_at", rangeStartIso).lt("created_at", rangeEndIso)
+    ),
+  ]);
+
+  const dailyMap = new Map(dateStrings.map((d) => [d, { visitors: 0, orders: 0 }]));
+  const sourceMap = new Map<string, TrafficSourceRow>();
+  const ensureSource = (key: string): TrafficSourceRow => {
+    let row = sourceMap.get(key);
+    if (!row) { row = { source: key, visitors: 0, orders: 0, paidOrders: 0, revenue: 0 }; sourceMap.set(key, row); }
+    return row;
+  };
+
+  for (const row of attributionRows) {
+    ensureSource(row.source || "direct").visitors++;
+    const bucket = dailyMap.get(sastDateOf(row.first_seen_at));
+    if (bucket) bucket.visitors++;
+  }
+
+  let ordersTotal = 0, paidOrdersTotal = 0, revenueTotal = 0;
+  const recentOrders: TrafficSourceOrder[] = [];
+  for (const o of orders) {
+    const source = o.traffic_source || "unknown";
+    const row = ensureSource(source);
+    row.orders++;
+    ordersTotal++;
+    const bucket = dailyMap.get(sastDateOf(o.created_at));
+    if (bucket) bucket.orders++;
+    if (o.payment_status === "paid") {
+      row.paidOrders++;
+      row.revenue += Number(o.total || 0);
+      paidOrdersTotal++;
+      revenueTotal += Number(o.total || 0);
+    }
+    recentOrders.push({
+      orderId: o.id,
+      orderReference: o.external_id ? String(o.external_id).replace(/^#?/, "#") : o.order_number != null ? `#${o.order_number}` : null,
+      customerName: o.customer_name,
+      customerEmail: o.customer_email,
+      total: Number(o.total || 0),
+      paymentStatus: o.payment_status,
+      source,
+      timestamp: o.created_at,
+    });
+  }
+  recentOrders.sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
+
+  return {
+    rangeDays: dateStrings.length,
+    totals: { visitors: attributionRows.length, orders: ordersTotal, paidOrders: paidOrdersTotal, revenue: revenueTotal },
+    sources: Array.from(sourceMap.values()).sort((a, b) => b.visitors - a.visitors || b.orders - a.orders),
+    dailySeries: dateStrings.map((d) => ({ date: d, ...(dailyMap.get(d) || { visitors: 0, orders: 0 }) })),
+    recentOrders: recentOrders.slice(0, TRAFFIC_ORDERS_LIMIT),
+  };
+}
+
 function isLikelyNoisyLocation(loc: TopLocation) {
   const country = (loc.country || "").toUpperCase();
   const city = (loc.city || "").toLowerCase();

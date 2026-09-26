@@ -41,6 +41,33 @@ const EVENT_TYPES = new Set([
   "checkout_pay_clicked", "checkout_payment_retry",
 ]);
 
+// Normalized first-touch source buckets this endpoint will accept as-is;
+// classifySource in lib/traffic-attribution.ts already collapses raw
+// utm_source values it doesn't recognise to their own lowercase string, so
+// this only needs to bound the length/shape, not enumerate every value.
+function safeAttribution(value: unknown): {
+  source: string; referrer: string | null; referrerHost: string | null;
+  utmSource: string | null; utmMedium: string | null; utmCampaign: string | null;
+  utmTerm: string | null; utmContent: string | null; landingPath: string;
+} | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const source = typeof v.source === "string" && v.source.trim() ? v.source.trim().slice(0, 40) : null;
+  if (!source) return null;
+  const str = (x: unknown, max: number) => (typeof x === "string" && x.trim() ? x.trim().slice(0, max) : null);
+  return {
+    source,
+    referrer: str(v.referrer, 600),
+    referrerHost: str(v.referrerHost, 200),
+    utmSource: str(v.utmSource, 100),
+    utmMedium: str(v.utmMedium, 100),
+    utmCampaign: str(v.utmCampaign, 100),
+    utmTerm: str(v.utmTerm, 100),
+    utmContent: str(v.utmContent, 100),
+    landingPath: str(v.landingPath, 300) || "/",
+  };
+}
+
 function safeEventMetadata(value: unknown): Record<string, string | number | boolean | null> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const allowed = new Set([
@@ -106,6 +133,7 @@ export async function POST(req: NextRequest) {
   const customerEmail = body?.customerEmail ? String(body.customerEmail).trim().slice(0, 160) || null : null;
   let eventType = EVENT_TYPES.has(body?.eventType) ? body.eventType : null;
   const eventMetadata = safeEventMetadata(body?.eventMetadata);
+  const attribution = safeAttribution(body?.attribution);
   const cartItems = Array.isArray(body?.cartItems)
     ? body.cartItems.slice(0, 20).map((item: any) => ({
         id: typeof item?.id === "string" ? item.id.slice(0, 80) : undefined,
@@ -171,6 +199,32 @@ export async function POST(req: NextRequest) {
     { onConflict: "seller_id,visitor_id,session_date", ignoreDuplicates: true }
   );
   if (sessionError) console.error("storefront heartbeat session-log upsert failed:", sessionError);
+
+  // First-touch traffic source (Google, WhatsApp, direct URL entry, etc.) --
+  // same insert-and-ignore-on-conflict pattern as the session-log upsert
+  // above, so only the very first heartbeat from a given visitor ever writes
+  // anything here; every later heartbeat from that visitor (even from a
+  // different page with a different referrer) is a no-op, which is exactly
+  // the "first touch wins" semantics this needs.
+  if (attribution) {
+    const { error: attributionError } = await admin.from("store_visitor_attribution").upsert(
+      {
+        seller_id: sellerId,
+        visitor_id: visitorId,
+        source: attribution.source,
+        referrer: attribution.referrer,
+        referrer_host: attribution.referrerHost,
+        utm_source: attribution.utmSource,
+        utm_medium: attribution.utmMedium,
+        utm_campaign: attribution.utmCampaign,
+        utm_term: attribution.utmTerm,
+        utm_content: attribution.utmContent,
+        landing_path: attribution.landingPath,
+      },
+      { onConflict: "seller_id,visitor_id", ignoreDuplicates: true }
+    );
+    if (attributionError) console.error("storefront heartbeat attribution upsert failed:", attributionError);
+  }
 
   // Split into two separate update calls, deliberately -- these used to be
   // one combined update, which meant a single bad/missing column in EITHER

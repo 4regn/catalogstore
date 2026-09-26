@@ -6,6 +6,7 @@ import { supabase } from "../../../../lib/supabase";
 import { useParams } from "next/navigation";
 import { computeAutomaticBxgyDiscount, type AutomaticBxgyDiscount } from "../../../../lib/automatic-discounts";
 import { getFontPair } from "../../../../lib/font-pairs";
+import { getTrafficAttribution } from "../../../../lib/traffic-attribution";
 import { effectiveStoreConfig } from "../../../../lib/template-config";
 import { trackStorefrontEvent, useLiveVisitorPing } from "../../../../lib/use-live-visitor-ping";
 import { buildCheckoutShippingOptions, calculateFourRegnDeliveryEstimate, isPremiumShippingOption, shippingOptionSavings, FOUR_REGN_FREE_PAXI_STANDARD_MINIMUM, type CheckoutShippingOption } from "../../../../lib/four-regn-shipping";
@@ -1441,6 +1442,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
           shippingOptionIndex: fulfillment === "delivery" ? shippingOption : null,
           paymentMethod: effectiveMethod,
           discountCode: discountApplied?.code || null,
+          attribution: getTrafficAttribution(),
         }),
       });
 
