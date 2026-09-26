@@ -2117,7 +2117,7 @@ export default function CheckoutPageClient({ initialSeller, useCleanPaths }: { i
                         </div>
                         <div className="payment-note" style={{ padding: "14px 0 0" }}>
                           Minimum deposit is 30% (R{fourRegnLaybuyMinDeposit(total).toFixed(0)}). Drag the slider or type an amount to pay more now &mdash; you&rsquo;ll be sent to Yoco to pay <strong>R{laybuyDepositAmount.toFixed(0)}</strong> securely, and can clear the remaining <strong>R{laybuyRemaining.toFixed(0)}</strong> any time from your 4REGN account. Your order ships once it&rsquo;s fully paid.
-                          {" "}Already started a Lay-Buy order? <a href={sp("/account")} style={{ color: "inherit", fontWeight: 600 }}>Log in to your account</a> to check your balance.
+                          {" "}Already started a Lay-Buy order? <a href={sp("/account")} style={{ color: "inherit", fontWeight: 600 }}>Log in to your account</a> to check your balance, or <a href={sp("/laybuy")} target="_blank" rel="noreferrer" style={{ color: "inherit", fontWeight: 600 }}>learn more about Lay-Buy</a>.
                         </div>
                       </div>
                     )}

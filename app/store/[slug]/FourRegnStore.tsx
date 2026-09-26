@@ -5519,6 +5519,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <h4>Account</h4>
                 <ul>
                   <li><a href={sp("/track")} onClick={(e) => { e.preventDefault(); navigate(sp("/track")); }}>Track Your Order</a></li>
+                  <li><a href={sp("/laybuy")} onClick={(e) => { e.preventDefault(); navigate(sp("/laybuy")); }}>Lay-Buy</a></li>
                   <li><button onClick={() => setCartOpen(true)}>Cart</button></li>
                   <li><a href={sp("/collections/all-men")} onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all-men")); }}>Men</a></li>
                   <li><a href={sp("/collections/all-women")} onClick={(e) => { e.preventDefault(); navigate(sp("/collections/all-women")); }}>Women</a></li>

@@ -67,6 +67,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (seller.subdomain === "4regn") {
     entries.push({ url: `${origin}/stitch-pay-later`, changeFrequency: "monthly", priority: 0.7 });
     entries.push({ url: `${origin}/reviews`, changeFrequency: "weekly", priority: 0.6 });
+    entries.push({ url: `${origin}/laybuy`, changeFrequency: "monthly", priority: 0.6 });
   }
 
   {
