@@ -901,6 +901,14 @@ function CustomerDetail({ id, authedFetch, toast, onBack }: { id: string; authed
   const [newLimit, setNewLimit] = useState("");
   const [limitReason, setLimitReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [notifyBusy, setNotifyBusy] = useState<"email" | "sms" | null>(null);
+  // Set right after a successful adjustLimit() below, while the true
+  // before/after numbers are still known in this session -- lets "Send
+  // limit update" use the right exciting-increase-vs-plain-change tone
+  // immediately. Left null if the panel is just opened fresh with no
+  // adjustment made yet; the send route itself then falls back to the
+  // audit log to work it out (see that route's own comment).
+  const [lastAdjustmentIncreased, setLastAdjustmentIncreased] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     const res = await authedFetch(`/api/setla/admin/customers/${id}`);
@@ -913,6 +921,7 @@ function CustomerDetail({ id, authedFetch, toast, onBack }: { id: string; authed
   async function adjustLimit() {
     if (!newLimit || Number(newLimit) <= 0) { toast("Enter a valid limit"); return; }
     setBusy(true);
+    const previousApproved = Number(data?.customer?.approved_limit || 0);
     const res = await authedFetch(`/api/setla/admin/customers/${id}/adjust-limit`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ newLimit: Number(newLimit), reason: limitReason }),
@@ -920,9 +929,25 @@ function CustomerDetail({ id, authedFetch, toast, onBack }: { id: string; authed
     const payload = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) { toast(payload.error || "Could not adjust this limit"); return; }
-    toast("Limit updated");
-    setNewLimit(""); setLimitReason("");
+    // The limit itself is saved -- the customer is NOT notified yet.
+    // Nothing here fires an email/SMS; that only happens if the admin
+    // clicks one of the "Send limit update" buttons below.
+    toast('Limit updated -- click "Send limit update" below to let them know');
+    setLastAdjustmentIncreased(Number(newLimit) > previousApproved);
+    setNewLimit("");
     load();
+  }
+
+  async function notifyLimit(channel: "email" | "sms") {
+    setNotifyBusy(channel);
+    const res = await authedFetch(`/api/setla/admin/customers/${id}/send-limit-notification`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, reason: limitReason.trim() || undefined, increased: lastAdjustmentIncreased ?? undefined }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    setNotifyBusy(null);
+    if (!res.ok) { toast(payload.error || "Could not send this notification"); return; }
+    toast(channel === "sms" ? "SMS sent" : "Email sent");
   }
 
   if (!data) return <p className="sad-empty">Loading…</p>;
@@ -945,10 +970,26 @@ function CustomerDetail({ id, authedFetch, toast, onBack }: { id: string; authed
       {customer.application_status === "approved" && (
         <div className="sad-card">
           <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Adjust spending limit</strong>
-          <p className="sad-empty" style={{ marginBottom: 12 }}>Reward good repayment behaviour with a higher limit, or correct it if needed. Their available balance shifts by the same amount so any existing spend still counts.</p>
+          <p className="sad-empty" style={{ marginBottom: 12 }}>Reward good repayment behaviour with a higher limit, or correct it if needed. Their available balance shifts by the same amount so any existing spend still counts. This does NOT notify the customer -- use "Send limit update" below when you're ready to let them know.</p>
           <div className="sad-form-row"><label>New approved limit (R)</label><input className="sad-input" type="number" min="0" value={newLimit} onChange={(e) => setNewLimit(e.target.value)} placeholder={String(customer.approved_limit)} /></div>
-          <div className="sad-form-row"><label>Note (optional, included in the customer's email)</label><textarea className="sad-textarea" value={limitReason} onChange={(e) => setLimitReason(e.target.value)} /></div>
+          <div className="sad-form-row"><label>Note (optional, included when you send the update)</label><textarea className="sad-textarea" value={limitReason} onChange={(e) => setLimitReason(e.target.value)} /></div>
           <button type="button" className="sad-btn" disabled={busy} onClick={adjustLimit}>{busy ? "Saving…" : "Update limit"}</button>
+        </div>
+      )}
+      {customer.application_status === "approved" && (
+        <div className="sad-card">
+          <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Send limit update</strong>
+          <p className="sad-empty" style={{ marginBottom: 12 }}>
+            Let {customer.first_name} know their limit is now {money(customer.approved_limit)}. Nothing sends automatically -- click a button below whenever you're ready.
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button type="button" className="sad-btn" disabled={notifyBusy !== null} onClick={() => notifyLimit("email")}>
+              {notifyBusy === "email" ? "Sending…" : "Send email"}
+            </button>
+            <button type="button" className="sad-btn sad-btn-secondary" disabled={notifyBusy !== null || !customer.phone} title={customer.phone ? undefined : "No phone number on file"} onClick={() => notifyLimit("sms")}>
+              {notifyBusy === "sms" ? "Sending…" : "Send SMS"}
+            </button>
+          </div>
         </div>
       )}
       <div className="sad-card">

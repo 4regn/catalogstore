@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
-import { sendSetlaEmail, limitAdjustedEmailContent } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -53,9 +52,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const notifyBody = increased
     ? `Good news -- based on your account, your SETLA spending limit is now R${newLimit.toFixed(2)}.`
     : `Your SETLA spending limit has been updated to R${newLimit.toFixed(2)}.`;
+  // In-app dashboard record only -- passive, seen next time the customer
+  // logs in, so it's fine to write unconditionally. The actual email/SMS is
+  // deliberately NOT sent here: this route used to fire
+  // limitAdjustedEmailContent automatically on every save, which meant an
+  // admin correcting a typo'd limit or testing a value had no way to stop
+  // the customer being emailed about it. Sending that notification is now
+  // a separate, explicit action -- see
+  // app/api/setla/admin/customers/[id]/send-limit-notification, triggered
+  // by the "Send limit update" button in the admin panel, never
+  // automatically from here.
   await admin.from("setla_notifications").insert({ customer_id: id, notification_type: "limit_adjusted", title, body: notifyBody });
-
-  await sendSetlaEmail({ to: customer.email, ...limitAdjustedEmailContent(customer.first_name, newLimit, increased, reason) });
 
   await admin.from("admin_audit_log").insert({
     admin_email: auth.admin.email,

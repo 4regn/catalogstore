@@ -43,6 +43,24 @@ export async function sendLimitReminderSms(opts: { to: string; firstName: string
   await sendSms({ to: opts.to, message: limitReminderSmsContent(opts.firstName, opts.availableLimit) });
 }
 
+// SMS companion to limitAdjustedEmailContent (lib/setla-email.ts) -- same
+// "explicit send only" rule applies: this fires only when an admin clicks
+// "Send limit update SMS" in the SETLA admin panel, never automatically off
+// an adjust-limit save. Same increased/not split as the email: a real
+// increase gets the exclamation-and-emoji treatment (matches
+// approvedLimitSmsContent's tone above), a decrease/correction stays plain.
+export function limitAdjustedSmsContent(firstName: string, newLimit: number, increased: boolean): string {
+  const amount = `R${Math.round(newLimit).toLocaleString("en-ZA")}`;
+  if (increased) {
+    return `Hi ${firstName}, great news! \u{1F389} Your SETLA limit just went up to ${amount}. Shop now, pay later at 4REGN & UNIK Labs: ${SETLA_DASHBOARD_URL}`;
+  }
+  return `Hi ${firstName}, your SETLA spending limit has been updated to ${amount}. View details: ${SETLA_DASHBOARD_URL}`;
+}
+
+export async function sendLimitAdjustedSms(opts: { to: string; firstName: string; newLimit: number; increased: boolean }) {
+  await sendSms({ to: opts.to, message: limitAdjustedSmsContent(opts.firstName, opts.newLimit, opts.increased) });
+}
+
 // SMS companion to the admin "Send reminder" button on an instalment
 // (app/api/setla/admin/instalments/[id]/remind) -- that route previously
 // only ever sent the branded email version. dueLabel is expected to come

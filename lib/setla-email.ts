@@ -395,16 +395,32 @@ export function manualReviewEmailContent(firstName: string) {
   };
 }
 
+// Sent only when an admin explicitly clicks "Send limit update" in the
+// SETLA admin panel (app/setla-admin/SetlaReviewPanels.tsx), NOT
+// automatically the moment a limit is adjusted -- adjust-limit/route.ts
+// used to fire this on every save, which meant an admin correcting a typo
+// or testing a value change couldn't stop a customer being emailed about
+// it. A real increase is good news worth sounding like it (this is the
+// email customers most want to get), so that branch leans into it; a
+// decrease/correction stays calm and factual, since there's nothing to
+// celebrate there.
 export function limitAdjustedEmailContent(firstName: string, newLimit: number, increased: boolean, reason: string | null) {
   return {
     firstName,
-    subject: increased ? "Your SETLA limit has increased" : "Your SETLA limit has changed",
-    kicker: increased ? "Good news" : "Account update",
-    headline: increased ? "Your SETLA limit has increased." : "Your SETLA limit has changed.",
+    subject: increased ? "Your SETLA limit just went up! \u{1F389}" : "Your SETLA limit has changed",
+    kicker: increased ? "Limit increase" : "Account update",
+    headline: increased ? "Your spending power just leveled up." : "Your SETLA limit has changed.",
     bodyHtml: increased
-      ? `Good news &mdash; based on your account, your SETLA spending limit is now <strong class="setla-fg" style="color:#ffffff">${money(newLimit)}</strong>.`
+      ? `We've reviewed your account and good news &mdash; you've earned a bigger SETLA limit! Your new spending limit is <strong class="setla-fg" style="color:#ffffff">${money(newLimit)}</strong>, ready to use right now.`
       : `Your SETLA spending limit has been updated to <strong class="setla-fg" style="color:#ffffff">${money(newLimit)}</strong>.`,
-    extraHtml: reason ? `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">${reason}</p>` : undefined,
+    extraHtml: [
+      increased
+        ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="setla-bg" style="margin:0 0 22px 0;background:#000000;border:1px solid #007517;border-radius:16px"><tr><td class="setla-bg" style="padding:20px 22px" bgcolor="#000000"><div class="setla-green" style="color:#4ade80;font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Your new spending limit</div><div class="setla-fg" style="font:500 38px/1 'Manrope',Arial,sans-serif;letter-spacing:-.03em;color:#ffffff">${money(newLimit)}</div></td></tr></table>`
+        : "",
+      reason ? `<p class="setla-fg" style="font-size:13px;line-height:1.7;color:#ffffff;margin:0 0 24px 0">${reason}</p>` : "",
+    ].join("") || undefined,
+    ctaLabel: increased ? "Start shopping" : undefined,
+    ctaUrl: increased ? "https://www.4regn.com" : undefined,
   };
 }
 
