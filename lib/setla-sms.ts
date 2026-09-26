@@ -1,5 +1,5 @@
 import { sendSms } from "./sms";
-import { SETLA_CUSTOMER_ORIGIN } from "./setla-email";
+import { SETLA_CUSTOMER_ORIGIN, SETLA_NUDGE_MAX_LIMIT } from "./setla-email";
 
 // setla.4regn.com is the SETLA marketing/customer-facing domain (see
 // middleware.ts's SETLA_MARKETING_HOSTS) -- it rewrites clean paths like
@@ -8,6 +8,22 @@ import { SETLA_CUSTOMER_ORIGIN } from "./setla-email";
 // just branded to 4REGN, which is who most of these customers actually
 // know (they bought there, not on uniklabs.co.za).
 const SETLA_DASHBOARD_URL = `${SETLA_CUSTOMER_ORIGIN}/dashboard`;
+const SETLA_APPLY_URL = `${SETLA_CUSTOMER_ORIGIN}/apply`;
+
+// SMS companion to signupNudgeEmailContent (lib/setla-email.ts) -- same
+// audience as that email (application_status 'not_applied' OR 'draft', see
+// app/api/cron/setla-signup-nudge's own comment on why both matter) and the
+// same "sent once, not a nag" semantics via signup_nudge_sent_at. No
+// separate copy needed for the two statuses: a 'draft' customer has
+// SOMETHING saved but still hasn't submitted, so "finish your application"
+// reads correctly either way.
+export function signupNudgeSmsContent(firstName: string): string {
+  return `Hi ${firstName}, you're almost there! Finish your SETLA application to unlock spending limits of up to R${SETLA_NUDGE_MAX_LIMIT.toLocaleString("en-ZA")}. Buy Now, Pay Later on 4REGN & UNIK Labs: ${SETLA_APPLY_URL}`;
+}
+
+export async function sendSignupNudgeSms(opts: { to: string; firstName: string }) {
+  await sendSms({ to: opts.to, message: signupNudgeSmsContent(opts.firstName) });
+}
 
 // SMS companion to sendApprovedSetlaLimitEmail -- same "standard vs
 // starter" variant split (see that function's own comment for why), kept

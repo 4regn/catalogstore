@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdmin } from "../../../../../../../lib/supabase-admin";
 import { requireSetlaAdmin } from "../../../../../../../lib/setla-admin";
-import { sendSetlaEmail, sendApprovedSetlaLimitEmail, SETLA_EMAIL_TYPES } from "../../../../../../../lib/setla-email";
+import { sendSetlaEmail, sendApprovedSetlaLimitEmail, SETLA_EMAIL_TYPES, matchesEligibleStatus } from "../../../../../../../lib/setla-email";
 
 export const dynamic = "force-dynamic";
 
@@ -42,9 +42,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .maybeSingle();
   if (!customer) return NextResponse.json({ error: "Customer not found" }, { status: 404 });
 
-  if (customer.application_status !== type.eligibleStatus) {
+  if (!matchesEligibleStatus(customer.application_status, type.eligibleStatus)) {
+    const statusLabel = Array.isArray(type.eligibleStatus) ? type.eligibleStatus.map((s) => s.replace("_", " ")).join(" or ") : type.eligibleStatus.replace("_", " ");
     return NextResponse.json(
-      { error: `This customer's application isn't ${type.eligibleStatus.replace("_", " ")} -- this email wouldn't make sense to send right now` },
+      { error: `This customer's application isn't ${statusLabel} -- this email wouldn't make sense to send right now` },
       { status: 409 }
     );
   }

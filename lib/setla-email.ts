@@ -442,11 +442,28 @@ export type SetlaEmailContent = Omit<Parameters<typeof sendSetlaEmail>[0], "to">
 // and the standalone test-send route (typed name/email, no customer
 // record, no eligibility check) -- so neither one can define its own
 // slightly-different copy of this list.
-export const SETLA_EMAIL_TYPES: Record<string, { eligibleStatus: string; content: (firstName: string, approvedLimit?: number) => SetlaEmailContent }> = {
-  signup_nudge: { eligibleStatus: "not_applied", content: (firstName) => signupNudgeEmailContent(firstName) },
+//
+// eligibleStatus can be a single status or an array -- signup_nudge needs
+// both, since "signed up but hasn't finished" covers two real
+// application_status values: 'not_applied' (never even opened the apply
+// flow) and 'draft' (started filling it in via the resumable apply flow,
+// saved via app/api/setla/apply/draft, but never hit final submit). Only
+// checking 'not_applied' silently excluded every 'draft' customer from
+// this nudge entirely -- a real gap confirmed live (roughly half of
+// everyone who hadn't submitted were sitting in 'draft', never nudged by
+// either this manual tool or the daily cron, app/api/cron/setla-signup-nudge).
+export const SETLA_EMAIL_TYPES: Record<string, { eligibleStatus: string | string[]; content: (firstName: string, approvedLimit?: number) => SetlaEmailContent }> = {
+  signup_nudge: { eligibleStatus: ["not_applied", "draft"], content: (firstName) => signupNudgeEmailContent(firstName) },
   received: { eligibleStatus: "pending", content: (firstName) => applicationReceivedEmailContent(firstName) },
   under_review: { eligibleStatus: "pending", content: (firstName) => underReviewEmailContent(firstName) },
   documents_requested: { eligibleStatus: "pending", content: (firstName) => documentsRequestedEmailContent(firstName) },
   approved: { eligibleStatus: "approved", content: (firstName, approvedLimit) => approvedEmailContent(firstName, approvedLimit ?? SETLA_SAMPLE_LIMIT) },
   declined: { eligibleStatus: "declined", content: (firstName) => declinedEmailContent(firstName, null) },
 };
+
+// Shared by both the manual send-email route and the admin panel's own
+// customer picker, so "is this customer eligible for this email type"
+// never has two, potentially drifting, implementations.
+export function matchesEligibleStatus(status: string, eligibleStatus: string | string[]): boolean {
+  return Array.isArray(eligibleStatus) ? eligibleStatus.includes(status) : status === eligibleStatus;
+}

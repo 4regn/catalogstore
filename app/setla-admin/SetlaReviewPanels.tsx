@@ -478,9 +478,13 @@ type CustomerRow = { id: string; first_name: string; last_name: string; email: s
 // Mirrors the eligibleStatus pattern from the Brand Manager's partner email
 // card -- each email only makes sense for customers currently sitting in
 // that application_status, so the picker only offers customers it could
-// actually be sent to.
-const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string }[] = [
-  { value: "signup_nudge", label: "Signup nudge -- complete your application", eligibleStatus: "not_applied" },
+// actually be sent to. signup_nudge takes an array: 'not_applied' (never
+// opened the apply flow) AND 'draft' (started it, saved progress, never
+// submitted) -- see lib/setla-email.ts's SETLA_EMAIL_TYPES comment for the
+// real gap this closes (draft customers were invisible to this picker
+// entirely before).
+const SETLA_EMAIL_TYPES: { value: string; label: string; eligibleStatus: string | string[] }[] = [
+  { value: "signup_nudge", label: "Signup nudge -- complete your application", eligibleStatus: ["not_applied", "draft"] },
   { value: "received", label: "Application received (resend)", eligibleStatus: "pending" },
   { value: "under_review", label: "Under review update (2-5 working days)", eligibleStatus: "pending" },
   { value: "documents_requested", label: "Need more documents (3-month bank statement)", eligibleStatus: "pending" },
@@ -523,7 +527,7 @@ function SendCustomerEmailCard({ customers, authedFetch, toast, onPhoneUpdated }
   const [busy, setBusy] = useState(false);
 
   const activeType = SETLA_EMAIL_TYPES.find((t) => t.value === emailType)!;
-  const eligible = customers.filter((c) => c.application_status === activeType.eligibleStatus);
+  const eligible = customers.filter((c) => (Array.isArray(activeType.eligibleStatus) ? activeType.eligibleStatus.includes(c.application_status) : c.application_status === activeType.eligibleStatus));
   const selected = eligible.find((c) => c.id === customerId) || null;
   const testReady = !selected && (channel === "sms" ? !!testPhone.trim() : !!testEmail.trim()) && !!testName.trim();
 
@@ -855,6 +859,156 @@ function LimitReminderCampaignCard({ authedFetch, toast }: { authedFetch: (path:
   );
 }
 
+// The nudge itself lives in lib/setla-email.ts (signupNudgeEmailContent)
+// and lib/setla-sms.ts (signupNudgeSmsContent) -- this card is just the
+// preview + confirm + trigger UI over app/api/setla/admin/campaigns/
+// signup-nudge, which does the actual targeting (application_status
+// 'not_applied' OR 'draft' -- see that route's own comment for why both
+// matter) and sending server-side. Sibling of LimitReminderCampaignCard
+// above, same shape, different audience/one-time-ever gate.
+type SignupNudgeAudienceRow = { id: string; name: string; email: string; phone: string; started: boolean; alreadyNudged: boolean };
+
+function SignupNudgeCampaignCard({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
+  const [audience, setAudience] = useState<SignupNudgeAudienceRow[] | null>(null);
+  const [channel, setChannel] = useState<"email" | "sms" | "both">("email");
+  const [force, setForce] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [showList, setShowList] = useState(false);
+  const [phoneDrafts, setPhoneDrafts] = useState<Record<string, string>>({});
+  const [savingPhoneId, setSavingPhoneId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await authedFetch("/api/setla/admin/campaigns/signup-nudge");
+    const payload = await res.json().catch(() => ({}));
+    const rows: SignupNudgeAudienceRow[] = res.ok ? payload.audience || [] : [];
+    setAudience(rows);
+    setPhoneDrafts(Object.fromEntries(rows.map((r) => [r.id, r.phone || ""])));
+  }, [authedFetch]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function savePhone(id: string) {
+    const phone = (phoneDrafts[id] || "").trim();
+    setSavingPhoneId(id);
+    const res = await authedFetch(`/api/setla/admin/customers/${id}/phone`, { method: "PATCH", body: JSON.stringify({ phone }) });
+    const payload = await res.json().catch(() => ({}));
+    setSavingPhoneId(null);
+    if (!res.ok) { toast(payload.error || "Could not save this number"); return; }
+    setAudience((prev) => prev ? prev.map((c) => (c.id === id ? { ...c, phone: payload.phone } : c)) : prev);
+    toast("Phone number updated");
+  }
+
+  // Nudges exactly one customer, bypassing the already-nudged auto-skip --
+  // for the case the bulk "Send to N" button can't cover: one specific
+  // person, e.g. right after fixing their phone number.
+  async function sendOne(customer: SignupNudgeAudienceRow) {
+    if (!window.confirm(`Send this nudge by ${channelLabel} to ${customer.name}?`)) return;
+    setSendingId(customer.id);
+    const res = await authedFetch("/api/setla/admin/campaigns/signup-nudge", {
+      method: "POST",
+      body: JSON.stringify({ channel, customerIds: [customer.id] }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    setSendingId(null);
+    if (!res.ok) { toast(payload.error || "Could not send this nudge"); return; }
+    const parts = [];
+    if (payload.emailsSent) parts.push(`${payload.emailsSent} email${payload.emailsSent === 1 ? "" : "s"}`);
+    if (payload.smsSent) parts.push(`${payload.smsSent} SMS`);
+    toast(parts.length ? `Sent ${parts.join(" & ")} to ${customer.name}` : `Nothing sent to ${customer.name} -- check their channel and phone number`);
+    load();
+  }
+
+  if (!audience) return null;
+
+  const eligibleNow = force ? audience : audience.filter((c) => !c.alreadyNudged);
+  const alreadyNudgedCount = audience.filter((c) => c.alreadyNudged).length;
+  const startedCount = eligibleNow.filter((c) => c.started).length;
+  const channelLabel = channel === "both" ? "email + SMS" : channel;
+  const invalidPhoneCount = audience.filter((c) => !SA_PHONE_REGEX.test(c.phone || "")).length;
+
+  async function send() {
+    if (!eligibleNow.length) return;
+    if (!window.confirm(`Send this nudge by ${channelLabel} to ${eligibleNow.length} customer${eligibleNow.length === 1 ? "" : "s"} who haven't finished signing up?`)) return;
+    setBusy(true);
+    const res = await authedFetch("/api/setla/admin/campaigns/signup-nudge", {
+      method: "POST",
+      body: JSON.stringify({ channel, force }),
+    });
+    const payload = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) { toast(payload.error || "Could not send this campaign"); return; }
+    const parts = [];
+    if (payload.emailsSent) parts.push(`${payload.emailsSent} email${payload.emailsSent === 1 ? "" : "s"}`);
+    if (payload.smsSent) parts.push(`${payload.smsSent} SMS`);
+    toast(parts.length ? `Sent ${parts.join(" & ")}` : "Nothing to send");
+    setForce(false);
+    load();
+  }
+
+  return (
+    <div className="sad-card" style={{ marginBottom: 16 }}>
+      <strong style={{ fontSize: 13, display: "block", marginBottom: 4 }}>Signup nudge campaign</strong>
+      <p className="sad-empty" style={{ marginBottom: 14 }}>Nudges everyone who signed up but hasn&rsquo;t submitted an application yet -- whether they never started or started and saved some progress. Sent once per customer unless you opt in below.</p>
+      {audience.length === 0 ? (
+        <p className="sad-empty" style={{ margin: 0 }}>Everyone who signed up has submitted an application.</p>
+      ) : (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "flex-end", marginBottom: 12 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, fontWeight: 700, color: "#9ba29b", flex: "1 1 160px" }}>
+              Channel
+              <select className="sad-select" value={channel} onChange={(e) => setChannel(e.target.value as "email" | "sms" | "both")}>
+                <option value="email">Email</option>
+                <option value="sms">SMS</option>
+                <option value="both">Email + SMS</option>
+              </select>
+            </label>
+            {alreadyNudgedCount > 0 && (
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#9ba29b", flex: "1 1 260px" }}>
+                <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+                Include {alreadyNudgedCount} already nudged before
+              </label>
+            )}
+            <button type="button" className="sad-btn" disabled={busy || eligibleNow.length === 0} onClick={send}>{busy ? "Sending…" : `Send to ${eligibleNow.length}`}</button>
+          </div>
+          <p className="sad-empty" style={{ margin: 0 }}>
+            {eligibleNow.length} customer{eligibleNow.length === 1 ? "" : "s"} targeted &middot; {startedCount} started but didn&rsquo;t finish, {eligibleNow.length - startedCount} never started
+            {!force && alreadyNudgedCount > 0 && ` · ${alreadyNudgedCount} excluded (already nudged)`}
+            {invalidPhoneCount > 0 && (channel === "sms" || channel === "both") && ` · ${invalidPhoneCount} with a number the SMS gateway will reject`}
+          </p>
+          <button type="button" className="sad-btn-outline" style={{ marginTop: 12 }} onClick={() => setShowList((v) => !v)}>{showList ? "Hide customers" : "Show customers & fix numbers"}</button>
+          {showList && (
+            <div className="sad-table" style={{ marginTop: 12 }}>
+              <div className="sad-row sad-row-header" style={{ gridTemplateColumns: "1.1fr .8fr 1.5fr .7fr .8fr" }}><span>Name</span><span>Progress</span><span>Phone</span><span></span><span></span></div>
+              {audience.map((c) => {
+                const draft = phoneDrafts[c.id] ?? "";
+                const invalid = !SA_PHONE_REGEX.test(c.phone || "");
+                const dirty = draft.trim() !== (c.phone || "");
+                return (
+                  <div key={c.id} className="sad-row" style={{ gridTemplateColumns: "1.1fr .8fr 1.5fr .7fr .8fr", alignItems: "center" }}>
+                    <span>{c.name}{c.alreadyNudged && <small style={{ display: "block", color: "#9ba29b" }}>Already nudged</small>}</span>
+                    <span>{c.started ? "Started" : "Never started"}</span>
+                    <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <input className="sad-input" type="tel" value={draft} onChange={(e) => setPhoneDrafts((prev) => ({ ...prev, [c.id]: e.target.value }))} style={{ fontSize: 12 }} />
+                      {invalid && <small style={{ color: "#e0895f" }}>Invalid</small>}
+                    </span>
+                    <button type="button" className="sad-btn-outline" disabled={!dirty || !draft.trim() || savingPhoneId === c.id} onClick={() => savePhone(c.id)} style={{ padding: "6px 10px", fontSize: 11 }}>
+                      {savingPhoneId === c.id ? "Saving…" : "Save"}
+                    </button>
+                    <button type="button" className="sad-btn" disabled={sendingId === c.id || (channel === "sms" && invalid)} onClick={() => sendOne(c)} style={{ padding: "6px 10px", fontSize: 11 }}>
+                      {sendingId === c.id ? "Sending…" : "Send"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: string, init?: RequestInit) => Promise<Response>; toast: (text: string) => void }) {
   const [search, setSearch] = useState("");
   const [rows, setRows] = useState<CustomerRow[] | null>(null);
@@ -876,6 +1030,7 @@ export function CustomersPanel({ authedFetch, toast }: { authedFetch: (path: str
 
   return (
     <section>
+      <SignupNudgeCampaignCard authedFetch={authedFetch} toast={toast} />
       <LimitReminderCampaignCard authedFetch={authedFetch} toast={toast} />
       {rows && rows.length > 0 && <SendCustomerEmailCard customers={rows} authedFetch={authedFetch} toast={toast} onPhoneUpdated={updateCustomerPhone} />}
       <input className="sad-input" placeholder="Search by name, email or ID number…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ marginBottom: 16, maxWidth: 360 }} />
