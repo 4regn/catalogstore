@@ -5,6 +5,7 @@ import { isStoreSubdomainRequest } from "../../../../lib/store-host";
 import { canonicalStoreUrl } from "../../../../lib/store-url";
 import { sellerMetadataTitle } from "../../../../lib/store-canonical-server";
 import type { StoreReview } from "../fourRegnReviews";
+import ReviewsPageViewTracker from "./ReviewsPageViewTracker";
 
 export const revalidate = 3600;
 export const dynamic = "force-static";
@@ -64,6 +65,7 @@ export default async function ReviewsPage({ params }: { params: Promise<{ slug: 
   return (
     <main className="reviews-page">
       <style>{CSS}</style>
+      <ReviewsPageViewTracker sellerId={seller.id} />
       <header>
         <a href={base || "/"} className="brand" aria-label={`${seller.store_name} home`}>
           {seller.logo_url ? <img src={seller.logo_url} alt={seller.store_name} /> : seller.store_name}

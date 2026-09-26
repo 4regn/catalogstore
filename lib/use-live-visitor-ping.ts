@@ -60,7 +60,16 @@ export type StorefrontEventType =
   // payment.
   | "checkout_delivery_details_filled"
   | "checkout_payment_method_selected" | "checkout_shipping_method_selected"
-  | "checkout_pay_clicked" | "checkout_payment_retry";
+  | "checkout_pay_clicked" | "checkout_payment_retry"
+  // The 4regn reviews page (app/store/[slug]/reviews/page.tsx) -- clicked
+  // fires from every "See all reviews"/"Reviews" link on the storefront
+  // (metadata.source says which one: "homepage_carousel" or "footer"),
+  // viewed fires once when that static page itself actually loads. Two
+  // separate events, not one, since not every click necessarily completes
+  // a page load (and a shared/bookmarked /reviews link has no click at
+  // all), so a seller can see both "how many people are drawn to click"
+  // and "how many actually land on the page".
+  | "reviews_link_clicked" | "reviews_page_viewed";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;

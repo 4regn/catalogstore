@@ -15,7 +15,7 @@ import SupportChat from "../components/SupportChat";
 import CustomersPanel from "./components/CustomersPanel";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
-import type { FullAnalytics, CheckoutFunnelAnalytics, TrafficSourceAnalytics } from "../../lib/store-analytics";
+import type { FullAnalytics, CheckoutFunnelAnalytics, TrafficSourceAnalytics, ReviewsPageAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../lib/order-payment-methods";
@@ -486,6 +486,8 @@ export default function Dashboard() {
   const [expandedLeadVisitorId, setExpandedLeadVisitorId] = useState("");
   const [trafficSourceAnalytics, setTrafficSourceAnalytics] = useState<TrafficSourceAnalytics | null>(null);
   const [trafficSourceLoading, setTrafficSourceLoading] = useState(false);
+  const [reviewsPageAnalytics, setReviewsPageAnalytics] = useState<ReviewsPageAnalytics | null>(null);
+  const [reviewsPageAnalyticsLoading, setReviewsPageAnalyticsLoading] = useState(false);
   const funnelRange = useMemo(() => {
     const today = sastToday();
     const addDays = (d: string, n: number) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86_400_000).toISOString().slice(0, 10);
@@ -1263,6 +1265,24 @@ export default function Dashboard() {
       setTrafficSourceLoading(false);
     })();
   }, [loading, tab, funnelRange.startDate, funnelRange.endDate]);
+
+  // 4regn-only (the reviews page itself only exists on that template) --
+  // same shared funnelRange picker as the traffic source card above. See
+  // getReviewsPageAnalytics.
+  useEffect(() => {
+    if (loading || tab !== "analytics" || !(seller?.subdomain === "4regn" || seller?.template === "4regn")) return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setReviewsPageAnalyticsLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/reviews-page-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, startDate: funnelRange.startDate, endDate: funnelRange.endDate }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setReviewsPageAnalytics(data);
+      } catch {}
+      setReviewsPageAnalyticsLoading(false);
+    })();
+  }, [loading, tab, seller?.subdomain, seller?.template, funnelRange.startDate, funnelRange.endDate]);
 
   // 4regn-only, same lazy-on-tab-open pattern as the full analytics fetch
   // above. See app/api/dashboard/flash-cap-analytics/route.ts.
@@ -5835,6 +5855,62 @@ export default function Dashboard() {
                   })()}
                   {trafficSourceLoading && !trafficSourceAnalytics && (
                     <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading traffic sources&hellip;</div>
+                  )}
+
+                  {/* REVIEWS PAGE -- how many people click through to see all
+                      reviews vs. how many actually land on the page (a
+                      shared link or direct hit has no click at all). 4regn-
+                      only, same shared range picker as the cards above. See
+                      getReviewsPageAnalytics. */}
+                  {(seller?.subdomain === "4regn" || seller?.template === "4regn") && (
+                    <>
+                    <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>
+                      Reviews page &middot; {funnelRange.startDate === funnelRange.endDate ? funnelRange.startDate : `${funnelRange.startDate} to ${funnelRange.endDate}`}
+                    </div>
+                    {reviewsPageAnalytics && (() => {
+                      const rp = reviewsPageAnalytics;
+                      const clickToViewPct = rp.totals.linkClicks > 0 ? Math.round((rp.totals.pageViews / rp.totals.linkClicks) * 100) : null;
+                      const sourceLabel = (key: string) => (key === "homepage_carousel" ? "Homepage “See all reviews”" : key === "footer" ? "Footer link" : key.charAt(0).toUpperCase() + key.slice(1));
+                      return (
+                      <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
+                          {[
+                            { label: "Link clicks", value: rp.totals.linkClicks.toLocaleString("en-ZA"), color: "#7aa2ff" },
+                            { label: "Page views", value: rp.totals.pageViews.toLocaleString("en-ZA"), color: "#fbbf24" },
+                            { label: "Unique viewers", value: rp.totals.uniqueViewers.toLocaleString("en-ZA"), color: "#22c55e" },
+                            { label: "Click → view rate", value: clickToViewPct !== null ? `${clickToViewPct}%` : "—", color: "#22c55e" },
+                          ].map((stat) => (
+                            <div key={stat.label} style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                              <div style={{ fontSize: 22, fontWeight: 900, color: stat.color, letterSpacing: "-0.02em" }}>{stat.value}</div>
+                              <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>{stat.label}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {rp.clicksBySource.length === 0 ? (
+                          <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No clicks on a reviews link in this range yet.</p>
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                            <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 2 }}>Clicked from</div>
+                            {rp.clicksBySource.map((s) => {
+                              const max = Math.max(1, ...rp.clicksBySource.map((x) => x.count));
+                              return (
+                                <div key={s.source}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span>{sourceLabel(s.source)}</span><span style={{ fontWeight: 700 }}>{s.count}</span></div>
+                                  <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                    <div style={{ width: `${Math.max(4, Math.round((s.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #7aa2ff, #60a5fa)", borderRadius: 3 }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      );
+                    })()}
+                    {reviewsPageAnalyticsLoading && !reviewsPageAnalytics && (
+                      <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading reviews page analytics&hellip;</div>
+                    )}
+                    </>
                   )}
 
                   {/* BEST SELLERS */}

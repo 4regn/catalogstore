@@ -5394,7 +5394,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
               <a
                 className="fr-rev-more"
                 href={sp("/reviews")}
-                onClick={(e) => { e.preventDefault(); navigate(sp("/reviews")); }}
+                onClick={(e) => { e.preventDefault(); if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "reviews_link_clicked", metadata: { source: "homepage_carousel" } }); navigate(sp("/reviews")); }}
               >
                 See all reviews
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
@@ -5509,7 +5509,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 <ul>
                   <li><a href={sp("/policies/shipping")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/shipping")); }}>Shipping</a></li>
                   <li><a href={sp("/policies/returns")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/returns")); }}>Returns & Refunds</a></li>
-                  <li><a href={sp("/reviews")} onClick={(e) => { e.preventDefault(); navigate(sp("/reviews")); }}>Reviews</a></li>
+                  <li><a href={sp("/reviews")} onClick={(e) => { e.preventDefault(); if (seller?.id) trackStorefrontEvent({ sellerId: seller.id, eventType: "reviews_link_clicked", metadata: { source: "footer" } }); navigate(sp("/reviews")); }}>Reviews</a></li>
                   <li><a href={sp("/policies/privacy")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/privacy")); }}>Privacy Policy</a></li>
                   <li><a href={sp("/policies/terms")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/terms")); }}>Terms of Service</a></li>
                   <li><a href={sp("/policies/contact")} onClick={(e) => { e.preventDefault(); navigate(sp("/policies/contact")); }}>Contact</a></li>

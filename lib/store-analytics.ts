@@ -811,6 +811,65 @@ export async function getTrafficSourceAnalytics(admin: SupabaseClient, sellerId:
   };
 }
 
+export type ReviewsPageAnalytics = {
+  rangeDays: number;
+  totals: { pageViews: number; linkClicks: number; uniqueViewers: number; uniqueClickers: number };
+  clicksBySource: { source: string; count: number }[];
+  dailySeries: { date: string; pageViews: number; linkClicks: number }[];
+};
+
+const REVIEWS_EVENT_TYPES = ["reviews_link_clicked", "reviews_page_viewed"] as const;
+
+/* How many people actually engage with the reviews page (app/store/[slug]/
+   reviews/page.tsx) -- clicks on every "See all reviews"/"Reviews" link
+   across the storefront (reviews_link_clicked, tagged with which link via
+   event_metadata.source: "homepage_carousel" or "footer") versus the page
+   actually loading (reviews_page_viewed, fired by ReviewsPageViewTracker.tsx
+   on that otherwise-static page, so a shared link or direct hit counts too,
+   not just an in-app click). Same explicit {startDate, endDate} range
+   design as getCheckoutFunnelAnalytics/getTrafficSourceAnalytics. */
+export async function getReviewsPageAnalytics(admin: SupabaseClient, sellerId: string, range: { startDate: string; endDate: string }): Promise<ReviewsPageAnalytics> {
+  const MAX_RANGE_DAYS = 366;
+  const dateStrings = dateStringsBetween(range.startDate, range.endDate).slice(-MAX_RANGE_DAYS);
+  const startDate = dateStrings[0];
+  const endDate = dateStrings[dateStrings.length - 1];
+  const rangeStartIso = sastDayStartUtc(startDate).toISOString();
+  const rangeEndIso = new Date(sastDayStartUtc(endDate).getTime() + 86_400_000).toISOString();
+
+  const events = await fetchAllRows<{ event_type: string; created_at: string; event_metadata: Record<string, unknown> | null; visitor_id: string | null }>(
+    admin, "store_visitor_events", "event_type, created_at, event_metadata, visitor_id", (q) =>
+      q.eq("seller_id", sellerId).in("event_type", REVIEWS_EVENT_TYPES as unknown as string[]).gte("created_at", rangeStartIso).lt("created_at", rangeEndIso)
+  );
+
+  const dailyMap = new Map(dateStrings.map((d) => [d, { pageViews: 0, linkClicks: 0 }]));
+  const sourceCounts = new Map<string, number>();
+  const uniqueViewers = new Set<string>();
+  const uniqueClickers = new Set<string>();
+  let pageViews = 0, linkClicks = 0;
+
+  for (const e of events) {
+    const bucket = dailyMap.get(sastDateOf(e.created_at));
+    if (e.event_type === "reviews_page_viewed") {
+      pageViews++;
+      if (bucket) bucket.pageViews++;
+      if (e.visitor_id) uniqueViewers.add(e.visitor_id);
+    } else if (e.event_type === "reviews_link_clicked") {
+      linkClicks++;
+      if (bucket) bucket.linkClicks++;
+      if (e.visitor_id) uniqueClickers.add(e.visitor_id);
+      const source = typeof e.event_metadata?.source === "string" ? e.event_metadata.source : "unknown";
+      sourceCounts.set(source, (sourceCounts.get(source) || 0) + 1);
+    }
+  }
+
+  return {
+    rangeDays: dateStrings.length,
+    totals: { pageViews, linkClicks, uniqueViewers: uniqueViewers.size, uniqueClickers: uniqueClickers.size },
+    clicksBySource: Array.from(sourceCounts.entries()).map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+    dailySeries: dateStrings.map((d) => ({ date: d, ...(dailyMap.get(d) || { pageViews: 0, linkClicks: 0 }) })),
+  };
+}
+
 function isLikelyNoisyLocation(loc: TopLocation) {
   const country = (loc.country || "").toUpperCase();
   const city = (loc.city || "").toLowerCase();

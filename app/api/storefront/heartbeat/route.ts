@@ -39,6 +39,10 @@ const EVENT_TYPES = new Set([
   "checkout_delivery_details_filled",
   "checkout_payment_method_selected", "checkout_shipping_method_selected",
   "checkout_pay_clicked", "checkout_payment_retry",
+  // 4regn reviews page -- same three-places-in-sync requirement (this
+  // list, StorefrontEventType, and the DB check constraint) as every
+  // event set above.
+  "reviews_link_clicked", "reviews_page_viewed",
 ]);
 
 // Normalized first-touch source buckets this endpoint will accept as-is;
