@@ -421,7 +421,7 @@ const templatesForSeller = (subdomain?: string | null) => {
 
 const COLOR_PRESETS = ["#ff6b35", "#ff6b35", "#111111", "#00d4aa", "#8b5cf6", "#e74c3c", "#2563eb", "#d4a017", "#16a34a", "#ec4899"];
 
-type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "customers" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team" | "reviews";
+type TabKey = "overview" | "launch" | "products" | "collections" | "orders" | "customers" | "mystore" | "checkout" | "discounts" | "abandoned" | "live" | "domains" | "analytics" | "qrcode" | "affiliate" | "newsletter" | "services" | "bookings" | "inbox" | "team" | "reviews" | "laybuy";
 
 // ── DASHBOARD THEME PALETTES ─────────────────────────────────────────────────
 // Active palette is exposed as CSS custom properties on the dashboard root via
@@ -745,6 +745,15 @@ export default function Dashboard() {
   const [newReviewQuote, setNewReviewQuote] = useState("");
   const [reviewUploading, setReviewUploading] = useState(false);
   const [reviewUploadError, setReviewUploadError] = useState("");
+  type FourRegnLaybuyPlan = {
+    id: string; order_id: string; total_amount: number; paid_amount: number; status: string; created_at: string; paid_off_at: string | null;
+    order: { order_number: number | string | null; external_id: string | null; customer_name: string; customer_email: string } | null;
+    payments: { id: string; amount: number; is_deposit: boolean; status: string; created_at: string; paid_at: string | null }[];
+  };
+  const [fourRegnLaybuyPlans, setFourRegnLaybuyPlans] = useState<FourRegnLaybuyPlan[]>([]);
+  const [fourRegnLaybuyLoading, setFourRegnLaybuyLoading] = useState(false);
+  const [fourRegnLaybuyLoaded, setFourRegnLaybuyLoaded] = useState(false);
+  const [expandedLaybuyPlanId, setExpandedLaybuyPlanId] = useState("");
   const [productSort, setProductSort] = useState("manual");
 
   interface DiscountCode { id: string; code: string; type: string; value: number; min_order: number; max_uses: number | null; used_count: number; active: boolean; expires_at: string | null; created_at: string; applies_to: string; product_ids: string[]; collection_names: string[]; show_countdown: boolean; description?: string | null; }
@@ -917,6 +926,7 @@ export default function Dashboard() {
     if (t === "newsletter" && !subscribersLoaded && !subscribersLoading) void fetchSubscribers();
     if (t === "inbox" && !inboxLoaded && !inboxLoading) void fetchInbox();
     if (t === "reviews" && !storeReviewsLoaded && !storeReviewsLoading) void fetchStoreReviews();
+    if (t === "laybuy" && !fourRegnLaybuyLoaded && !fourRegnLaybuyLoading) void fetchFourRegnLaybuyPlans();
   };
 
   const checkAuth = async () => {
@@ -1370,6 +1380,22 @@ export default function Dashboard() {
     setStoreReviews((prev) => prev.filter((r) => r.id !== id));
     const { error } = await supabase.from("store_reviews").delete().eq("id", id);
     if (error) setStoreReviews(previous);
+  };
+
+  // four_regn_laybuy_plans/payments have no browser-facing RLS policy (see
+  // that migration's own comment) -- goes through the authenticated API
+  // route instead, same access_token pattern as fetchSubscribers.
+  const fetchFourRegnLaybuyPlans = async () => {
+    const token = await getAccessToken();
+    if (!token) return;
+    setFourRegnLaybuyLoading(true);
+    try {
+      const res = await fetch("/api/four-regn-laybuy/list", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token }) });
+      const data = await res.json();
+      if (res.ok) setFourRegnLaybuyPlans(data.plans || []);
+    } catch {}
+    setFourRegnLaybuyLoading(false);
+    setFourRegnLaybuyLoaded(true);
   };
 
   const fetchInbox = async (silent = false) => {
@@ -2468,6 +2494,7 @@ export default function Dashboard() {
         ...(seller?.subdomain === "4regn" ? [{ key: "overview" as TabKey, name: "Retail Partners", icon: "store" as DashIconName, action: () => router.push("/retail-pilot") }] : []),
         { key: "abandoned" as TabKey, name: "Abandoned Carts", icon: "cart" as DashIconName, count: abandonedOrders.length },
         { key: "discounts" as TabKey, name: "Discounts", icon: "discount" as DashIconName, count: discountCodes.length },
+        ...(seller?.template === "4regn" ? [{ key: "laybuy" as TabKey, name: "Lay-Buy", icon: "payment" as DashIconName, count: fourRegnLaybuyPlans.filter((p) => p.status === "active").length }] : []),
         ...((seller?.template === "velour" || seller?.template === "4regn" || seller?.subdomain === "4regn") ? [{ key: "inbox" as TabKey, name: "Inbox", icon: "megaphone" as DashIconName, count: inboxConversations.reduce((s, c) => s + (c.seller_unread || 0), 0) }] : []),
         ...(seller?.template === "unik-labs" ? [{ key: "team" as TabKey, name: "Brand Manager", icon: "affiliate" as DashIconName }] : []),
       ],
@@ -5764,6 +5791,62 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>)}
+
+          {tab === "laybuy" && (<div>
+            <h1 style={{ fontSize: "clamp(20px, 4vw, 28px)", fontWeight: 900, letterSpacing: "-0.04em", textTransform: "uppercase" as const, marginBottom: 4 }}>Lay-Buy</h1>
+            <p style={{ fontSize: 14, color: "var(--muted)", marginBottom: 16 }}>Deposits and balance payments customers have made toward Lay-Buy orders. An order ships once its balance reaches zero.</p>
+            <div style={sectionCard}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)" }}>{fourRegnLaybuyPlans.length} Lay-Buy Order{fourRegnLaybuyPlans.length === 1 ? "" : "s"}</h3>
+                <button onClick={() => void fetchFourRegnLaybuyPlans()} disabled={fourRegnLaybuyLoading} style={{ padding: "8px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: fourRegnLaybuyLoading ? "default" : "pointer" }}>{fourRegnLaybuyLoading ? "Refreshing…" : "Refresh"}</button>
+              </div>
+              {fourRegnLaybuyLoading && fourRegnLaybuyPlans.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>Loading…</p>
+              ) : fourRegnLaybuyPlans.length === 0 ? (
+                <p style={{ fontSize: 13, color: "var(--muted-2)" }}>No Lay-Buy orders yet. They'll show up here once a customer pays a deposit at checkout.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column" as const, gap: 10 }}>
+                  {fourRegnLaybuyPlans.map((plan) => {
+                    const remaining = Math.max(0, plan.total_amount - plan.paid_amount);
+                    const pct = plan.total_amount > 0 ? Math.min(100, Math.round((plan.paid_amount / plan.total_amount) * 100)) : 0;
+                    const expanded = expandedLaybuyPlanId === plan.id;
+                    return (
+                      <div key={plan.id} style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 14 }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }} onClick={() => setExpandedLaybuyPlanId(expanded ? "" : plan.id)}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 700 }}>{plan.order ? (plan.order.external_id ? String(plan.order.external_id).replace(/^#?/, "#") : `#${plan.order.order_number}`) : plan.order_id.slice(0, 8)} <span style={{ fontWeight: 400, color: "var(--muted)" }}>{plan.order?.customer_name}</span></div>
+                            <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{new Date(plan.created_at).toLocaleDateString("en-ZA")}{plan.order?.customer_email ? ` · ${plan.order.customer_email}` : ""}</div>
+                          </div>
+                          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", padding: "5px 10px", borderRadius: 100, background: plan.status === "paid_off" ? "rgba(0,117,31,0.1)" : "var(--panel-2)", color: plan.status === "paid_off" ? "#00751f" : "var(--text)" }}>{plan.status === "paid_off" ? "Paid off" : "Active"}</span>
+                        </div>
+                        <div style={{ height: 6, borderRadius: 100, background: "var(--panel-2)", margin: "12px 0 8px", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: plan.status === "paid_off" ? "#00751f" : N, borderRadius: 100 }} />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted)" }}>
+                          <span>R{plan.paid_amount.toFixed(0)} paid</span>
+                          <span>R{remaining.toFixed(0)} remaining</span>
+                          <span>R{plan.total_amount.toFixed(0)} total</span>
+                        </div>
+                        {expanded && (
+                          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                            {plan.payments.map((p) => (
+                              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 12 }}>
+                                <span>{p.is_deposit ? "Deposit" : "Top-up"} · {new Date(p.created_at).toLocaleDateString("en-ZA")}</span>
+                                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, color: p.status === "paid" ? "#00751f" : p.status === "failed" ? "#b42318" : "var(--muted-2)" }}>{p.status}</span>
+                                  <strong>R{p.amount.toFixed(0)}</strong>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
