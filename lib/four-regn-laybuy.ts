@@ -8,6 +8,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // extension of SETLA's.
 
 export const FOUR_REGN_LAYBUY_MIN_DEPOSIT_PERCENT = 0.3;
+// A deposit locks in an order, not an open-ended tab -- 6 months to clear
+// the balance from the day the deposit lands, or the plan expires (see
+// expireOverdueFourRegnLaybuyPlans, run daily via
+// app/api/cron/expire-four-regn-laybuy).
+export const FOUR_REGN_LAYBUY_TERM_MONTHS = 6;
+
+export function fourRegnLaybuyExpiryDate(from: Date = new Date()): string {
+  const d = new Date(from);
+  d.setMonth(d.getMonth() + FOUR_REGN_LAYBUY_TERM_MONTHS);
+  return d.toISOString();
+}
 
 // Rounds the minimum UP to the cent, same reasoning as SETLA's own
 // minLaybuyDeposit -- a customer can't dip a fraction of a cent under the
@@ -69,6 +80,7 @@ export async function activateFourRegnLaybuyPlan(
       paid_amount: depositAmount,
       status: isFullyPaid ? "paid_off" : "active",
       paid_off_at: isFullyPaid ? new Date().toISOString() : null,
+      expires_at: isFullyPaid ? null : fourRegnLaybuyExpiryDate(),
     })
     .select("id")
     .single();
@@ -146,7 +158,8 @@ export async function markFourRegnLaybuyPaymentPaid(
 /* Laybuy top-up's equivalent of markSetlaInstalmentFailed's ledger-only
    branch -- a failed payment attempt on the ledger just gets marked
    failed; the customer can submit a fresh payment of any amount from
-   their account at any time, same as any other top-up. */
+   their account any time before the plan's own 6-month deadline, same as
+   any other top-up. */
 export async function markFourRegnLaybuyPaymentFailed(admin: SupabaseClient, paymentId: string): Promise<"failed" | "no_change"> {
   const { data: updated, error } = await admin
     .from("four_regn_laybuy_payments")
@@ -160,4 +173,31 @@ export async function markFourRegnLaybuyPaymentFailed(admin: SupabaseClient, pay
     return "no_change";
   }
   return updated ? "failed" : "no_change";
+}
+
+/* Daily sweep (app/api/cron/expire-four-regn-laybuy) -- a plan that's still
+   short of its total 6 months after the deposit landed expires: no more
+   top-ups accepted (see the status check in
+   app/api/customer-account/laybuy/pay/route.ts), and the underlying order
+   is cancelled so it stops sitting "pending" indefinitely instead of ever
+   shipping. The deposit already paid is NOT refunded automatically here --
+   that's a seller judgment call, same as any other cancelled order. Scoped
+   to status='active' so a plan already paid_off/expired can't be swept
+   twice. */
+export async function expireOverdueFourRegnLaybuyPlans(admin: SupabaseClient): Promise<{ expired: number }> {
+  const { data: expiredPlans, error } = await admin
+    .from("four_regn_laybuy_plans")
+    .update({ status: "expired" })
+    .eq("status", "active")
+    .lte("expires_at", new Date().toISOString())
+    .select("id, order_id");
+  if (error) {
+    console.error("expireOverdueFourRegnLaybuyPlans: update failed", error);
+    return { expired: 0 };
+  }
+  if (!expiredPlans?.length) return { expired: 0 };
+
+  await admin.from("orders").update({ status: "cancelled" }).in("id", expiredPlans.map((p) => p.order_id)).eq("status", "pending");
+
+  return { expired: expiredPlans.length };
 }

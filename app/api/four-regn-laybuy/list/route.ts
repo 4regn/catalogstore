@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await getAdmin()
       .from("four_regn_laybuy_plans")
       .select(
-        "id, order_id, total_amount, paid_amount, status, created_at, paid_off_at, " +
+        "id, order_id, total_amount, paid_amount, status, created_at, paid_off_at, expires_at, " +
         "orders(order_number, external_id, customer_name, customer_email), " +
         "four_regn_laybuy_payments(id, amount, is_deposit, status, created_at, paid_at)"
       )

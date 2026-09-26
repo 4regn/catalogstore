@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (fetchErr || !plan || plan.customer_id !== account.customer_id) return NextResponse.json({ error: "Lay-Buy plan not found" }, { status: 404 });
   if (plan.status === "paid_off") return NextResponse.json({ error: "This Lay-Buy plan is already fully paid" }, { status: 409 });
+  // Expired (past its 6-month deadline, see expireOverdueFourRegnLaybuyPlans)
+  // -- the underlying order is already cancelled by that point, so a
+  // top-up here would just be collecting money against an order that's
+  // never going to ship.
+  if (plan.status !== "active") return NextResponse.json({ error: "This Lay-Buy plan has expired and can no longer accept payments" }, { status: 409 });
 
   const remaining = Math.round((Number(plan.total_amount) - Number(plan.paid_amount)) * 100) / 100;
   if (remaining <= 0) return NextResponse.json({ error: "This Lay-Buy plan is already fully paid" }, { status: 409 });

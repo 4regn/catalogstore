@@ -746,7 +746,7 @@ export default function Dashboard() {
   const [reviewUploading, setReviewUploading] = useState(false);
   const [reviewUploadError, setReviewUploadError] = useState("");
   type FourRegnLaybuyPlan = {
-    id: string; order_id: string; total_amount: number; paid_amount: number; status: string; created_at: string; paid_off_at: string | null;
+    id: string; order_id: string; total_amount: number; paid_amount: number; status: string; created_at: string; paid_off_at: string | null; expires_at: string | null;
     order: { order_number: number | string | null; external_id: string | null; customer_name: string; customer_email: string } | null;
     payments: { id: string; amount: number; is_deposit: boolean; status: string; created_at: string; paid_at: string | null }[];
   };
@@ -5821,11 +5821,14 @@ export default function Dashboard() {
                             <div style={{ fontSize: 13, fontWeight: 700 }}>{plan.order ? (plan.order.external_id ? String(plan.order.external_id).replace(/^#?/, "#") : `#${plan.order.order_number}`) : plan.order_id.slice(0, 8)} <span style={{ fontWeight: 400, color: "var(--muted)" }}>{plan.order?.customer_name}</span></div>
                             <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2 }}>{new Date(plan.created_at).toLocaleDateString("en-ZA")}{plan.order?.customer_email ? ` · ${plan.order.customer_email}` : ""}</div>
                           </div>
-                          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", padding: "5px 10px", borderRadius: 100, background: plan.status === "paid_off" ? "rgba(0,117,31,0.1)" : "var(--panel-2)", color: plan.status === "paid_off" ? "#00751f" : "var(--text)" }}>{plan.status === "paid_off" ? "Paid off" : "Active"}</span>
+                          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.08em", padding: "5px 10px", borderRadius: 100, background: plan.status === "paid_off" ? "rgba(0,117,31,0.1)" : plan.status === "expired" ? "rgba(180,35,24,0.1)" : "var(--panel-2)", color: plan.status === "paid_off" ? "#00751f" : plan.status === "expired" ? "#b42318" : "var(--text)" }}>{plan.status === "paid_off" ? "Paid off" : plan.status === "expired" ? "Expired" : "Active"}</span>
                         </div>
                         <div style={{ height: 6, borderRadius: 100, background: "var(--panel-2)", margin: "12px 0 8px", overflow: "hidden" }}>
-                          <div style={{ height: "100%", width: `${pct}%`, background: plan.status === "paid_off" ? "#00751f" : N, borderRadius: 100 }} />
+                          <div style={{ height: "100%", width: `${pct}%`, background: plan.status === "paid_off" ? "#00751f" : plan.status === "expired" ? "#b42318" : N, borderRadius: 100 }} />
                         </div>
+                        {plan.status === "active" && plan.expires_at && (
+                          <div style={{ fontSize: 11, color: "var(--muted-2)", marginBottom: 4 }}>Due by {new Date(plan.expires_at).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })}</div>
+                        )}
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--muted)" }}>
                           <span>R{plan.paid_amount.toFixed(0)} paid</span>
                           <span>R{remaining.toFixed(0)} remaining</span>

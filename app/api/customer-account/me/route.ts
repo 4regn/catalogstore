@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   // with an active/paid_off plan up front and fold its id into that filter.
   const laybuyPlansResult = auth.seller.subdomain === "4regn"
     ? await admin.from("four_regn_laybuy_plans")
-        .select("id, order_id, total_amount, paid_amount, status, created_at")
+        .select("id, order_id, total_amount, paid_amount, status, created_at, expires_at")
         .eq("seller_id", auth.seller.id)
         .eq("customer_id", auth.account.customer_id)
         .order("created_at", { ascending: false })

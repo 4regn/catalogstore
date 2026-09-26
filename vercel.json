@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/reconcile-resend-unsubscribes",
       "schedule": "45 5 * * *"
+    },
+    {
+      "path": "/api/cron/expire-four-regn-laybuy",
+      "schedule": "0 6 * * *"
     }
   ]
 }

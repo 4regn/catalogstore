@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!seller || seller.template !== "4regn") return {};
 
   const title = `${seller.store_name} Lay-Buy — Pay a Deposit, Take Your Time`;
-  const description = `Shop now, pay over time. Pay a 30% deposit at checkout, clear the rest whenever you like from your ${seller.store_name} account. No credit check, no interest, no fixed schedule.`;
+  const description = `Shop now, pay over time. Pay a 30% deposit at checkout, clear the rest within 6 months from your ${seller.store_name} account. No credit check, no interest.`;
 
   return {
     title: sellerMetadataTitle(title, seller.custom_domain_status),
@@ -34,7 +34,8 @@ const FAQ = [
   { q: "Is there a credit check?", a: "No. Lay-Buy isn't a credit or BNPL product — you're simply paying for your own order in stages, on your own terms." },
   { q: "What's the minimum deposit?", a: "30% of your order total, paid securely at checkout to lock your order in." },
   { q: "Can I pay more than the minimum?", a: "Yes — at checkout you can choose any amount from 30% up to the full total, if you'd rather get more of it out of the way upfront." },
-  { q: "Is there a deadline to finish paying?", a: "No fixed deadline. Pay off your balance in any amount, any time, from your account — whenever suits you." },
+  { q: "Is there a deadline to finish paying?", a: "Yes — 6 months from the day your deposit lands. Pay off your balance in any amount, any time within that window, from your account." },
+  { q: "What happens if I don't finish paying in time?", a: "Your Lay-Buy plan expires and the order is cancelled. The deposit already paid isn't refunded, so it's worth staying on top of your balance." },
   { q: "When does my order ship?", a: "The moment your balance hits zero, your order goes into production and out the door. Nothing ships before it's fully paid." },
   { q: "Can I use Lay-Buy on any order?", a: "Yes — it's available as a payment option on any order at checkout." },
 ];
@@ -65,9 +66,9 @@ export default async function LaybuyPage({ params }: { params: Promise<{ slug: s
         <div className="eyebrow">No Credit Check &middot; Pay Over Time</div>
         <h1>{seller.store_name} Lay-Buy</h1>
         <p>
-          Pay a 30% deposit today, clear the rest whenever you like, and we&rsquo;ll ship the
-          moment it&rsquo;s fully paid. No interest, no credit check, no fixed schedule &mdash;
-          just your order, paid off on your own terms.
+          Pay a 30% deposit today, clear the rest within 6 months, and we&rsquo;ll ship the
+          moment it&rsquo;s fully paid. No interest, no credit check &mdash; just your order,
+          paid off on your own terms.
         </p>
         <div className="hero-ctas">
           <a className="shop" href={base || "/"}>Shop the collection</a>
@@ -81,7 +82,7 @@ export default async function LaybuyPage({ params }: { params: Promise<{ slug: s
           <div className="example-split">
             <div><strong>R300</strong><span>due today (30%)</span></div>
             <div className="example-arrow">&rarr;</div>
-            <div><strong>R700</strong><span>paid off whenever you like</span></div>
+            <div><strong>R700</strong><span>paid off within 6 months</span></div>
           </div>
         </div>
       </section>
@@ -96,7 +97,7 @@ export default async function LaybuyPage({ params }: { params: Promise<{ slug: s
           <div className="step">
             <span className="step-num">02</span>
             <h3>Top up whenever you like</h3>
-            <p>Log into your {seller.store_name} account and pay off your balance in any amount, any time. No due dates, no penalties, no interest.</p>
+            <p>Log into your {seller.store_name} account and pay off your balance in any amount, any time within 6 months. No interest, no penalties for paying it off early.</p>
           </div>
           <div className="step">
             <span className="step-num">03</span>
