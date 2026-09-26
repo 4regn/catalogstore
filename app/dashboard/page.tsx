@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useId } from "react";
+import { useState, useEffect, useMemo, useRef, useId } from "react";
+import { sastToday } from "../../lib/sast-time";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "next/navigation";
 import { extractLegacyImportedSizeChart, parseProductSizeChartHtml } from "@/lib/product-size-chart";
@@ -473,6 +474,33 @@ export default function Dashboard() {
   const [fullAnalyticsLoading, setFullAnalyticsLoading] = useState(false);
   const [checkoutFunnel, setCheckoutFunnel] = useState<CheckoutFunnelAnalytics | null>(null);
   const [checkoutFunnelLoading, setCheckoutFunnelLoading] = useState(false);
+  // Independent from analyticsRangeDays (the rest of the Analytics tab's
+  // fixed 7/30/90-day buttons) -- this card needs real calendar ranges
+  // (Today/This Week/This Month/Custom), which a plain day count can't
+  // express (e.g. "this month" is a different length every month, and
+  // "yesterday" isn't "the last N days" at all).
+  type FunnelRangePreset = "today" | "yesterday" | "this_week" | "this_month" | "7d" | "30d" | "90d" | "custom";
+  const [funnelRangePreset, setFunnelRangePreset] = useState<FunnelRangePreset>("30d");
+  const [funnelCustomStart, setFunnelCustomStart] = useState("");
+  const [funnelCustomEnd, setFunnelCustomEnd] = useState("");
+  const [expandedLeadVisitorId, setExpandedLeadVisitorId] = useState("");
+  const funnelRange = useMemo(() => {
+    const today = sastToday();
+    const addDays = (d: string, n: number) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86_400_000).toISOString().slice(0, 10);
+    switch (funnelRangePreset) {
+      case "today": return { startDate: today, endDate: today };
+      case "yesterday": { const y = addDays(today, -1); return { startDate: y, endDate: y }; }
+      case "this_week": {
+        const dow = new Date(today + "T00:00:00Z").getUTCDay(); // 0 = Sunday
+        return { startDate: addDays(today, dow === 0 ? -6 : 1 - dow), endDate: today };
+      }
+      case "this_month": return { startDate: today.slice(0, 7) + "-01", endDate: today };
+      case "7d": return { startDate: addDays(today, -6), endDate: today };
+      case "90d": return { startDate: addDays(today, -89), endDate: today };
+      case "custom": return { startDate: funnelCustomStart || today, endDate: funnelCustomEnd || today };
+      default: return { startDate: addDays(today, -29), endDate: today };
+    }
+  }, [funnelRangePreset, funnelCustomStart, funnelCustomEnd]);
   const [analyticsRangeDays, setAnalyticsRangeDays] = useState(30);
   const [flashCapAnalytics, setFlashCapAnalytics] = useState<{ funnel: { type: string; count: number; uniqueVisitors: number }[]; orderValueTotal: number; totalEvents: number } | null>(null);
   const [flashCapAnalyticsLoading, setFlashCapAnalyticsLoading] = useState(false);
@@ -1206,13 +1234,13 @@ export default function Dashboard() {
       if (!token) return;
       setCheckoutFunnelLoading(true);
       try {
-        const res = await fetch("/api/dashboard/checkout-funnel-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, days: analyticsRangeDays }) });
+        const res = await fetch("/api/dashboard/checkout-funnel-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, startDate: funnelRange.startDate, endDate: funnelRange.endDate }) });
         const data = await res.json().catch(() => ({}));
         if (res.ok) setCheckoutFunnel(data);
       } catch {}
       setCheckoutFunnelLoading(false);
     })();
-  }, [loading, tab, analyticsRangeDays]);
+  }, [loading, tab, funnelRange.startDate, funnelRange.endDate]);
 
   // 4regn-only, same lazy-on-tab-open pattern as the full analytics fetch
   // above. See app/api/dashboard/flash-cap-analytics/route.ts.
@@ -5513,9 +5541,38 @@ export default function Dashboard() {
                       getCheckoutFunnelAnalytics for exactly what each stage
                       means); hour-by-hour detail beyond this daily view is
                       queryable directly against storefront_funnel_hourly. */}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" as const, gap: 10, marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>
+                      Checkout funnel &middot; {funnelRange.startDate === funnelRange.endDate ? funnelRange.startDate : `${funnelRange.startDate} to ${funnelRange.endDate}`}
+                    </div>
+                    <div style={{ display: "flex", gap: 4, padding: 4, background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 100, flexWrap: "wrap" as const }}>
+                      {([
+                        { key: "today" as const, label: "Today" },
+                        { key: "yesterday" as const, label: "Yesterday" },
+                        { key: "this_week" as const, label: "This week" },
+                        { key: "this_month" as const, label: "This month" },
+                        { key: "7d" as const, label: "7 days" },
+                        { key: "30d" as const, label: "30 days" },
+                        { key: "90d" as const, label: "90 days" },
+                        { key: "custom" as const, label: "Custom" },
+                      ]).map((opt) => (
+                        <button key={opt.key} onClick={() => setFunnelRangePreset(opt.key)} style={{ padding: "7px 14px", borderRadius: 100, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800, fontFamily: "'Schibsted Grotesk', sans-serif", background: funnelRangePreset === opt.key ? G : "transparent", color: funnelRangePreset === opt.key ? "#fff" : "var(--muted)" }}>{opt.label}</button>
+                      ))}
+                    </div>
+                  </div>
+                  {funnelRangePreset === "custom" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" as const }}>
+                      <label style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>From
+                        <input type="date" value={funnelCustomStart} max={funnelCustomEnd || undefined} onChange={(e) => setFunnelCustomStart(e.target.value)} style={{ padding: "8px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12 }} />
+                      </label>
+                      <label style={{ fontSize: 11, color: "var(--muted)", display: "flex", alignItems: "center", gap: 6 }}>To
+                        <input type="date" value={funnelCustomEnd} min={funnelCustomStart || undefined} max={sastToday()} onChange={(e) => setFunnelCustomEnd(e.target.value)} style={{ padding: "8px 12px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12 }} />
+                      </label>
+                    </div>
+                  )}
                   {checkoutFunnel && (
+                    <>
                     <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
-                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 16 }}>Checkout funnel &middot; last {checkoutFunnel.rangeDays} days</div>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
                         {[
                           { label: "Reached checkout", value: checkoutFunnel.totals.reachedCheckout, color: "#7aa2ff" },
@@ -5582,6 +5639,96 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
+
+                    {/* WHO FILLED OUT DETAILS -- the question the stage
+                        counts above can't answer: identity, cart contents,
+                        and what actually became of it. Includes anyone who
+                        typed their details and cart and simply never placed
+                        an order at all (outcome "no_order") -- there's no
+                        orders row for those, so this is the only place a
+                        seller can see them. */}
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap" as const, gap: 8 }}>
+                        <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700 }}>Who filled out details</div>
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>{checkoutFunnel.identifiedLeads.length} identified</span>
+                      </div>
+                      {checkoutFunnel.identifiedLeads.length === 0 ? (
+                        <p style={{ fontSize: 12, color: "var(--muted-2)" }}>Nobody identified themselves at checkout in this range yet.</p>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                          {checkoutFunnel.identifiedLeads.map((lead) => {
+                            const expanded = expandedLeadVisitorId === lead.visitorId;
+                            const outcomeLabel = lead.outcome === "paid" ? "Paid" : lead.outcome === "order_unpaid" ? "Order placed, unpaid" : "Never placed order";
+                            const outcomeColor = lead.outcome === "paid" ? "#22c55e" : lead.outcome === "order_unpaid" ? "#fbbf24" : "var(--muted-2)";
+                            return (
+                              <div key={lead.visitorId} style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" as const }}>
+                                <button onClick={() => setExpandedLeadVisitorId(expanded ? "" : lead.visitorId)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "var(--panel-2)", border: "none", cursor: "pointer", textAlign: "left" as const, fontFamily: "inherit" }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text)", overflow: "hidden" as const, textOverflow: "ellipsis" as const, whiteSpace: "nowrap" as const }}>{lead.customerName || "Unnamed"} <span style={{ fontWeight: 400, color: "var(--muted)" }}>&middot; {lead.customerEmail}</span></div>
+                                    <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 3 }}>{new Date(lead.timestamp).toLocaleString("en-ZA")} &middot; {lead.cartItemCount} item{lead.cartItemCount === 1 ? "" : "s"} &middot; R{lead.cartValue.toFixed(0)}</div>
+                                  </div>
+                                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.05em", padding: "5px 10px", borderRadius: 100, background: "var(--panel)", color: outcomeColor, flexShrink: 0 }}>{outcomeLabel}{lead.orderReference ? ` ${lead.orderReference}` : ""}</span>
+                                </button>
+                                {expanded && (
+                                  <div style={{ padding: "12px 14px", borderTop: "1px solid var(--border)" }}>
+                                    {lead.cartItems.length === 0 ? (
+                                      <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No cart contents captured for this visit.</p>
+                                    ) : (
+                                      <div style={{ display: "flex", flexDirection: "column" as const, gap: 6 }}>
+                                        {lead.cartItems.map((item, i) => (
+                                          <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                                            <span>{item.name}{item.variant ? ` (${item.variant})` : ""} &times; {item.qty}</span>
+                                            <span style={{ fontWeight: 700 }}>R{(Number(item.price) * Number(item.qty)).toFixed(0)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* ANONYMOUS DROP-OFF -- the other half of the same
+                        question: how much is walking away with nobody to
+                        name. Aggregated, not listed per-visitor, since
+                        there's no identity to follow up with individually. */}
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 6 }}>Didn&rsquo;t fill out details</div>
+                      <p style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>Visitors who had a cart or reached checkout but never gave a name or email -- no one to identify or follow up with individually.</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: checkoutFunnel.anonymousDropoff.topProducts.length ? 20 : 0 }}>
+                        <div style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-0.02em" }}>{checkoutFunnel.anonymousDropoff.count.toLocaleString("en-ZA")}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>Anonymous visitors</div>
+                        </div>
+                        <div style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-0.02em" }}>R{checkoutFunnel.anonymousDropoff.totalCartValue.toLocaleString("en-ZA", { maximumFractionDigits: 0 })}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>Cart value at risk</div>
+                        </div>
+                      </div>
+                      {checkoutFunnel.anonymousDropoff.topProducts.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>What they were adding</div>
+                          <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                            {checkoutFunnel.anonymousDropoff.topProducts.map((p) => {
+                              const max = Math.max(1, ...checkoutFunnel.anonymousDropoff.topProducts.map((x) => x.count));
+                              return (
+                                <div key={p.name}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span>{p.name}</span><span style={{ fontWeight: 700 }}>{p.count}</span></div>
+                                  <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                    <div style={{ width: `${Math.max(4, Math.round((p.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #f87171, #fb923c)", borderRadius: 3 }} />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    </>
                   )}
                   {checkoutFunnelLoading && !checkoutFunnel && (
                     <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading checkout funnel&hellip;</div>

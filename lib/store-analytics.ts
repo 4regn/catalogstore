@@ -44,6 +44,19 @@ function pastNDaysStrings(n: number, today: string): string[] {
   return out;
 }
 
+// Inclusive list of "YYYY-MM-DD" calendar-date strings from startDate to
+// endDate -- same pure string arithmetic as pastNDaysStrings, generalized
+// to an arbitrary explicit range (Today/This Week/This Month/Custom aren't
+// expressible as "the last N days" the way the older day-count-based
+// analytics functions assume).
+function dateStringsBetween(startDate: string, endDate: string): string[] {
+  const out: string[] = [];
+  const startMs = new Date(startDate + "T00:00:00Z").getTime();
+  const endMs = new Date(endDate + "T00:00:00Z").getTime();
+  for (let t = startMs; t <= endMs; t += 86_400_000) out.push(new Date(t).toISOString().slice(0, 10));
+  return out;
+}
+
 /* Shopify-style "sessions today / orders today / sales today" plus a
    sessions-by-day chart and top visitor locations -- all bucketed to the
    seller's actual South African calendar day (see lib/sast-time.ts), not
@@ -413,6 +426,33 @@ export async function getFullAnalytics(admin: SupabaseClient, sellerId: string, 
 
 export type CheckoutFunnelCount = { key: string; count: number };
 export type CheckoutFunnelDailyPoint = { date: string; reachedCheckout: number; filledDeliveryDetails: number; clickedPayNow: number; paidOrders: number };
+// Who's actually behind the "filled in details" number -- an identity
+// (name/email), what was in their cart at the time, and what became of it.
+// "no_order" is the case a seller has no visibility into at all otherwise:
+// someone typed their details and cart at checkout and simply never
+// clicked Place Order (or did, and it never reached a gateway) -- there's
+// no orders row for these, so this is the only place they show up.
+export type IdentifiedCheckoutLead = {
+  visitorId: string;
+  customerName: string | null;
+  customerEmail: string;
+  timestamp: string;
+  cartItemCount: number;
+  cartValue: number;
+  cartItems: FunnelVisitorActivity["cartItems"];
+  outcome: "paid" | "order_unpaid" | "no_order";
+  orderId: string | null;
+  orderReference: string | null;
+};
+// The other half of the same question -- visitors who had a cart or
+// reached checkout but never gave a name/email at all, so there's no one
+// to identify or follow up with individually. Aggregated rather than
+// listed per-visitor for exactly that reason.
+export type AnonymousDropoffSummary = {
+  count: number;
+  totalCartValue: number;
+  topProducts: { name: string; count: number }[];
+};
 export type CheckoutFunnelAnalytics = {
   rangeDays: number;
   totals: {
@@ -427,6 +467,8 @@ export type CheckoutFunnelAnalytics = {
   paymentMethodSelections: CheckoutFunnelCount[];
   shippingOptionSelections: CheckoutFunnelCount[];
   dailySeries: CheckoutFunnelDailyPoint[];
+  identifiedLeads: IdentifiedCheckoutLead[];
+  anonymousDropoff: AnonymousDropoffSummary;
 };
 
 const CHECKOUT_FUNNEL_EVENT_TYPES = [
@@ -456,22 +498,39 @@ const CHECKOUT_FUNNEL_EVENT_TYPES = [
 
    Reads store_visitor_events directly (not the storefront_funnel_hourly
    rollup) -- that rollup only stores per-event-type counts, not the
-   metadata (which payment method, etc.) this needs, and the existing
-   dashboard's own day-range cap (90 days, same as getFullAnalytics) keeps
-   a direct scan bounded and index-backed
-   (store_visitor_events_seller_type_time_idx covers exactly this query
-   shape: seller_id + event_type IN (...) + created_at range). Finer-
-   grained hour-by-hour analysis beyond what this daily chart shows is
-   still available by querying storefront_funnel_hourly directly. */
-export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId: string, requestedDays: number): Promise<CheckoutFunnelAnalytics> {
-  const days = Math.min(90, Math.max(7, Math.round(requestedDays) || 30));
-  const today = sastToday();
-  const dateStrings = pastNDaysStrings(days, today);
-  const rangeStartIso = sastDayStartUtc(dateStrings[0]).toISOString();
+   metadata (which payment method, etc.) this needs, and store_visitor_events_seller_type_time_idx
+   covers exactly this query shape: seller_id + event_type IN (...) +
+   created_at range. Finer-grained hour-by-hour analysis beyond what this
+   daily chart shows is still available by querying storefront_funnel_hourly
+   directly.
+
+   Also answers the two questions the stage counts alone can't: who's
+   actually behind "filled in details" (identifiedLeads -- name, email,
+   cart contents, and what became of it: paid / order placed but unpaid /
+   never placed at all), and how much is walking away anonymously
+   (anonymousDropoff -- nobody to name, but still a real cart value and
+   real products). Identity/cart snapshot per visitor is sourced the same
+   way the abandoned-checkout-email cron already does: store_visitor_sessions
+   for the authoritative reached_checkout flag and identity (updated live
+   as a customer types, unlike a one-off event row), enriched with the most
+   recent store_visitor_events row that actually carried cart_items for
+   that same visitor. */
+export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId: string, range: { startDate: string; endDate: string }): Promise<CheckoutFunnelAnalytics> {
+  // Bounded to a year so a custom range picked far too wide (e.g. "all
+  // time") can't turn this into an unbounded full-table scan -- every
+  // query below is a real-time read, not a pre-aggregated rollup.
+  const MAX_RANGE_DAYS = 366;
+  const dateStrings = dateStringsBetween(range.startDate, range.endDate).slice(-MAX_RANGE_DAYS);
+  const startDate = dateStrings[0];
+  const endDate = dateStrings[dateStrings.length - 1];
+  const rangeStartIso = sastDayStartUtc(startDate).toISOString();
+  // Exclusive upper bound: the instant SAST midnight begins on the day
+  // AFTER endDate, so activity anywhere during endDate itself is included.
+  const rangeEndIso = new Date(sastDayStartUtc(endDate).getTime() + 86_400_000).toISOString();
 
   const events = await fetchAllRows<{ event_type: string; created_at: string; event_metadata: Record<string, unknown> | null; visitor_id: string | null }>(
     admin, "store_visitor_events", "event_type, created_at, event_metadata, visitor_id", (q) =>
-      q.eq("seller_id", sellerId).in("event_type", CHECKOUT_FUNNEL_EVENT_TYPES as unknown as string[]).gte("created_at", rangeStartIso)
+      q.eq("seller_id", sellerId).in("event_type", CHECKOUT_FUNNEL_EVENT_TYPES as unknown as string[]).gte("created_at", rangeStartIso).lt("created_at", rangeEndIso)
   );
 
   const dailyMap = new Map(dateStrings.map((d) => [d, { reachedCheckout: 0, filledDeliveryDetails: 0, clickedPayNow: 0, paidOrders: 0 }]));
@@ -520,12 +579,27 @@ export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId
   // getFullAnalytics already draws on (store_visitor_sessions.reached_checkout,
   // paid orders), rather than re-deriving them from the event log, so this
   // card's numbers always agree with the rest of the Analytics tab.
-  const [sessionsRes, orders] = await Promise.all([
-    admin.from("store_visitor_sessions").select("session_date, reached_checkout").eq("seller_id", sellerId).gte("session_date", dateStrings[0]),
-    fetchOrdersInRange(admin, sellerId, rangeStartIso),
+  //
+  // The full session rows (not just reached_checkout) are also this
+  // function's source of identity for identifiedLeads/anonymousDropoff
+  // below -- fetched once here and reused, rather than a second query.
+  const [sessionsRes, orders, dropoffEventRows] = await Promise.all([
+    admin.from("store_visitor_sessions").select("visitor_id, session_date, customer_name, customer_email, had_cart, reached_checkout").eq("seller_id", sellerId).gte("session_date", startDate).lte("session_date", endDate),
+    // Orders placed up to 3 days after the range ends still count as this
+    // range's outcome -- someone who reached checkout on the last day of a
+    // custom range and paid the next morning shouldn't show as "no_order".
+    fetchAllRows<{ id: string; order_number: number | string | null; external_id: string | null; customer_email: string | null; payment_status: string; created_at: string }>(
+      admin, "orders", "id, order_number, external_id, customer_email, payment_status, created_at", (q) =>
+        q.eq("seller_id", sellerId).gte("created_at", rangeStartIso).lt("created_at", new Date(new Date(rangeEndIso).getTime() + 3 * 86_400_000).toISOString())
+    ),
+    fetchAllRows<{ visitor_id: string; customer_name: string | null; customer_email: string | null; cart_item_count: number; cart_value: number; cart_items: unknown; created_at: string }>(
+      admin, "store_visitor_events", "visitor_id, customer_name, customer_email, cart_item_count, cart_value, cart_items, created_at", (q) =>
+        q.eq("seller_id", sellerId).in("event_type", ["add_to_cart", "reached_checkout"]).gte("created_at", rangeStartIso).lt("created_at", rangeEndIso).order("created_at", { ascending: false })
+    ),
   ]);
+  const sessionRowsInRange = sessionsRes.data || [];
   let reachedCheckoutTotal = 0;
-  for (const row of sessionsRes.data || []) {
+  for (const row of sessionRowsInRange) {
     if (!row.reached_checkout) continue;
     reachedCheckoutTotal++;
     const bucket = dailyMap.get(row.session_date);
@@ -533,14 +607,88 @@ export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId
   }
   let paidOrdersTotal = 0;
   for (const o of orders) {
-    if (o.payment_status !== "paid") continue;
+    if (o.payment_status !== "paid" || new Date(o.created_at) >= new Date(rangeEndIso)) continue;
     paidOrdersTotal++;
     const bucket = dailyMap.get(sastDateOf(o.created_at));
     if (bucket) bucket.paidOrders++;
   }
 
+  // Most recent cart snapshot per visitor within the range -- dropoffEventRows
+  // is already sorted newest-first, so the first row seen per visitor_id
+  // wins, same "latest wins" technique the abandoned-checkout-email cron
+  // uses to find real cart_items for a given visitor.
+  const latestCartByVisitor = new Map<string, (typeof dropoffEventRows)[number]>();
+  for (const row of dropoffEventRows) {
+    if (!latestCartByVisitor.has(row.visitor_id)) latestCartByVisitor.set(row.visitor_id, row);
+  }
+
+  // One snapshot per visitor who had a cart or reached checkout during the
+  // range, combining store_visitor_sessions' authoritative identity/flags
+  // with whichever event row carried the most complete cart_items.
+  type VisitorSnapshot = { visitorId: string; name: string | null; email: string | null; cartItemCount: number; cartValue: number; cartItems: FunnelVisitorActivity["cartItems"]; timestamp: string };
+  const snapshotByVisitor = new Map<string, VisitorSnapshot>();
+  for (const row of sessionRowsInRange) {
+    if (!row.had_cart && !row.reached_checkout) continue;
+    const cart = latestCartByVisitor.get(row.visitor_id);
+    const existing = snapshotByVisitor.get(row.visitor_id);
+    snapshotByVisitor.set(row.visitor_id, {
+      visitorId: row.visitor_id,
+      name: row.customer_name || existing?.name || null,
+      email: row.customer_email || existing?.email || null,
+      cartItemCount: Number(cart?.cart_item_count ?? existing?.cartItemCount ?? 0),
+      cartValue: Number(cart?.cart_value ?? existing?.cartValue ?? 0),
+      cartItems: (Array.isArray(cart?.cart_items) ? cart!.cart_items : existing?.cartItems || []) as FunnelVisitorActivity["cartItems"],
+      timestamp: cart?.created_at || existing?.timestamp || sastDayStartUtc(row.session_date).toISOString(),
+    });
+  }
+
+  const orderByEmail = new Map<string, (typeof orders)[number]>();
+  for (const o of orders) {
+    const email = (o.customer_email || "").trim().toLowerCase();
+    if (!email) continue;
+    const existing = orderByEmail.get(email);
+    // Prefer a paid order over an unpaid one if a visitor somehow has both
+    // (e.g. an abandoned attempt followed by a successful retry).
+    if (!existing || o.payment_status === "paid") orderByEmail.set(email, o);
+  }
+
+  const identifiedLeads: IdentifiedCheckoutLead[] = [];
+  let anonymousCount = 0;
+  let anonymousCartValueTotal = 0;
+  const anonymousProductCounts = new Map<string, number>();
+  for (const snap of snapshotByVisitor.values()) {
+    if (snap.email) {
+      const order = orderByEmail.get(snap.email.trim().toLowerCase()) || null;
+      identifiedLeads.push({
+        visitorId: snap.visitorId,
+        customerName: snap.name,
+        customerEmail: snap.email,
+        timestamp: snap.timestamp,
+        cartItemCount: snap.cartItemCount,
+        cartValue: snap.cartValue,
+        cartItems: snap.cartItems,
+        outcome: !order ? "no_order" : order.payment_status === "paid" ? "paid" : "order_unpaid",
+        orderId: order?.id || null,
+        orderReference: order ? (order.external_id ? String(order.external_id).replace(/^#?/, "#") : order.order_number != null ? `#${order.order_number}` : null) : null,
+      });
+    } else {
+      anonymousCount++;
+      anonymousCartValueTotal += snap.cartValue;
+      for (const item of snap.cartItems) {
+        if (!item?.name) continue;
+        anonymousProductCounts.set(item.name, (anonymousProductCounts.get(item.name) || 0) + (Number(item.qty) || 1));
+      }
+    }
+  }
+  identifiedLeads.sort((a, b) => +new Date(b.timestamp) - +new Date(a.timestamp));
+  const anonymousDropoff: AnonymousDropoffSummary = {
+    count: anonymousCount,
+    totalCartValue: anonymousCartValueTotal,
+    topProducts: Array.from(anonymousProductCounts.entries()).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10),
+  };
+
   return {
-    rangeDays: days,
+    rangeDays: dateStrings.length,
     totals: {
       reachedCheckout: reachedCheckoutTotal,
       filledDeliveryDetails,
@@ -553,6 +701,8 @@ export async function getCheckoutFunnelAnalytics(admin: SupabaseClient, sellerId
     paymentMethodSelections: Array.from(paymentMethodCounts.entries()).map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count),
     shippingOptionSelections: Array.from(shippingOptionCounts.entries()).map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count),
     dailySeries: dateStrings.map((d) => ({ date: d, ...(dailyMap.get(d) || { reachedCheckout: 0, filledDeliveryDetails: 0, clickedPayNow: 0, paidOrders: 0 }) })),
+    identifiedLeads,
+    anonymousDropoff,
   };
 }
 
