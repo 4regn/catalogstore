@@ -1281,15 +1281,29 @@
     const cents=Math.round(Number(total)*100),first=Math.round(cents/2);
     return [{number:1,amount:first/100,date:'Today',status:'Due now'},{number:2,amount:(cents-first)/100,date:'In 30 days',status:'Scheduled'}];
   }
-  function renderSchedule(total,plan){
+  function renderSchedule(total,plan,available){
     const schedule=document.getElementById('paymentSchedule');if(!schedule)return [];
     const depositPicker=document.getElementById('laybuyDepositPicker');
+    // Pay in 4 / Half and Half finance whatever fits under the customer's
+    // available limit and charge the rest upfront alongside instalment #1
+    // -- mirrors the server's own financedAmount/excessUpfront math exactly
+    // (lib/setla-instalments.ts's buildInstalmentSchedule/
+    // buildHalfAndHalfSchedule, app/api/checkout/setla-create's own
+    // comment) so this preview never disagrees with what's actually
+    // charged. Laybuy isn't credit at all, so `available` never applies to
+    // it -- callers pass it through regardless, this just ignores it there.
+    const hasLimit=typeof available==='number'&&Number.isFinite(available);
+    const financedAmount=(plan==='half'||plan==='limit')&&hasLimit?Math.min(total,available):total;
+    const excessUpfront=Math.max(0,Math.round((total-financedAmount)*100)/100);
     if(plan==='half'){
       if(depositPicker)depositPicker.hidden=true;
-      const rows=halfHalfSchedule(total);
+      const rows=halfHalfSchedule(financedAmount);
+      if(excessUpfront>0)rows[0].amount=Math.round((rows[0].amount+excessUpfront)*100)/100;
       schedule.innerHTML=rows.map(row=>`<div class="schedule-row"><i>${row.number}</i><span><small>${row.status}</small><strong>${row.date}</strong></span><b>${money(row.amount)}</b></div>`).join('');
       document.getElementById('scheduleTotal').textContent=money(total);
-      document.getElementById('scheduleNote').textContent='Your first payment is due today, drawn from your SETLA limit. The remaining 50% is due in 30 days and can be managed from your dashboard.';
+      document.getElementById('scheduleNote').textContent=excessUpfront>0
+        ?`${money(excessUpfront)} of this order is above your available SETLA limit, so it's included in today's payment on top of your first instalment. The remaining 50% of your financed balance is due in 30 days and can be managed from your dashboard.`
+        :'Your first payment is due today, drawn from your SETLA limit. The remaining 50% is due in 30 days and can be managed from your dashboard.';
       return rows;
     }
     if(plan==='laybuy'){
@@ -1317,11 +1331,14 @@
       return [];
     }
     if(depositPicker)depositPicker.hidden=true;
-    const count=4,interval=14,parts=splitAmount(total,count);
+    const count=4,interval=14,parts=splitAmount(financedAmount,count);
+    if(excessUpfront>0)parts[0]=Math.round((parts[0]+excessUpfront)*100)/100;
     const rows=parts.map((amount,index)=>({number:index+1,amount,date:index===0?'Today':dateAfter(index*interval),status:index===0?'Due now':'Scheduled'}));
     schedule.innerHTML=rows.map(row=>`<div class="schedule-row"><i>${row.number}</i><span><small>${row.status}</small><strong>${row.date}</strong></span><b>${money(row.amount)}</b></div>`).join('');
     document.getElementById('scheduleTotal').textContent=money(total);
-    document.getElementById('scheduleNote').textContent='Your first instalment is due today. The remaining three payments follow every 14 days and can be managed from your dashboard.';
+    document.getElementById('scheduleNote').textContent=excessUpfront>0
+      ?`${money(excessUpfront)} of this order is above your available SETLA limit, so it's included in today's payment on top of your first instalment. Your remaining three payments follow every 14 days and can be managed from your dashboard.`
+      :'Your first instalment is due today. The remaining three payments follow every 14 days and can be managed from your dashboard.';
     return rows;
   }
   function itemTitle(item){return item?.name||item?.title||item?.productName||item?.options?.name||`${item?.options?.garment||'Custom'} ${item?.options?.type||'garment'}`}
@@ -1426,8 +1443,29 @@
         location.href='login.html?next=checkout.html';
       });
     }
-    const status=account.applicationStatus||'not_applied',available=Number(account.availableLimit||0);let allowed=status==='approved'&&available>=total;
-    if(status==='approved'){title.textContent=allowed?'Pay Later is available for this order.':'This order is above your available limit.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)}`;hint.textContent=`${money(available)} available`;action.href='dashboard.html';action.textContent='View limit';if(!allowed)card.classList.add('needs-action')}
+    const status=account.applicationStatus||'not_applied',available=Number(account.availableLimit||0);
+    // A cart above the customer's available limit used to hard-block Pay
+    // Later/Half and Half outright (allowed required available>=total) --
+    // that lost a real, confirmed sale: an approved customer with e.g. R300
+    // available on a R700 cart had both credit options disabled and was
+    // forced onto Laybuy or nothing, even though the server has always
+    // known how to handle this (app/api/checkout/setla-create, app/api/
+    // setla/checkout/create finance whatever fits under the limit and
+    // charge the excess upfront alongside instalment #1 -- see
+    // buildSetlaFirstChargeMetadata's own comment for the exact math). This
+    // frontend gate just never let a customer reach that server logic.
+    // `allowed` now only requires SOME available limit (matches the
+    // server's own `available_limit>0` check) -- the excess above it is
+    // simply added to today's payment, shown in renderSchedule below.
+    const hasCredit=status==='approved'&&available>0;
+    const fullyCovered=hasCredit&&available>=total;
+    let allowed=hasCredit;
+    if(status==='approved'){
+      if(fullyCovered){title.textContent='Pay Later is available for this order.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)}`}
+      else if(hasCredit){title.textContent='Part of this order is above your available limit.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)} · Due upfront: ${money(total-available)}`;card.classList.add('needs-action')}
+      else{title.textContent='This order is above your available limit.';copy.textContent=`Available now: ${money(available)} · Order total: ${money(total)}`;card.classList.add('needs-action')}
+      hint.textContent=`${money(available)} available`;action.href='dashboard.html';action.textContent='View limit';
+    }
     else if(status==='pending'){title.textContent='Your Pay Later application is in review.';copy.textContent='SETLA Laybuy remains available while you wait for your decision.';action.href='dashboard.html';action.textContent='View status';card.classList.add('pending-state')}
     else{title.textContent='Apply to unlock a SETLA spending limit.';copy.textContent='You can apply now or continue with SETLA Laybuy without using credit.';action.href='apply.html';action.textContent='Apply now';card.classList.add('needs-action')}
     // Half and Half is genuinely credit -- same SETLA limit as Pay in 4,
@@ -1436,8 +1474,8 @@
     // not treated as a no-credit option the way SETLA Laybuy is.
     if(!allowed){[payLater,halfHalf].forEach(choice=>{choice.classList.add('disabled');choice.querySelector('input').disabled=true});document.querySelector('input[value="laybuy"]').checked=true;document.querySelectorAll('.choice').forEach(choice=>choice.classList.toggle('selected',choice.querySelector('input')?.checked))}
     const requested=new URLSearchParams(location.search).get('plan');if(requested==='laybuy')document.querySelector('input[value="laybuy"]').click();
-    renderSchedule(total,selectedPlan());
-    document.querySelectorAll('input[name="plan"]').forEach(input=>input.addEventListener('change',()=>renderSchedule(total,input.value)));
+    renderSchedule(total,selectedPlan(),available);
+    document.querySelectorAll('input[name="plan"]').forEach(input=>input.addEventListener('change',()=>renderSchedule(total,input.value,available)));
     document.getElementById('confirmSETLA').addEventListener('click',async()=>{
       const btn=document.getElementById('confirmSETLA');
       const error=document.getElementById('checkoutError');error.classList.remove('show');
