@@ -172,13 +172,34 @@ export async function POST(req: NextRequest) {
   );
   if (sessionError) console.error("storefront heartbeat session-log upsert failed:", sessionError);
 
-  const sessionUpdate: Record<string, unknown> = {
+  // Split into two separate update calls, deliberately -- these used to be
+  // one combined update, which meant a single bad/missing column in EITHER
+  // half silently failed the WHOLE statement (Postgres updates are all-or-
+  // nothing), including had_cart/reached_checkout. That's exactly what
+  // happened live: customer_name/customer_email were missing from this
+  // table entirely (see 20260926b_store_visitor_sessions_identity.sql), so
+  // the instant a checkout visitor typed their name or email, this update
+  // started failing outright -- reached_checkout silently stopped getting
+  // set for the one case that matters most, with nothing surfacing the
+  // failure beyond a console.error nobody was watching. had_cart/
+  // reached_checkout are the funnel signal the whole Analytics tab depends
+  // on; they must never be able to fail because of an unrelated identity
+  // column having drifted.
+  const funnelUpdate: Record<string, unknown> = {
     last_status: status,
     last_path: path,
     last_seen_at: new Date().toISOString(),
   };
-  if (cartItemCount > 0) sessionUpdate.had_cart = true;
-  if (status === "checkout") sessionUpdate.reached_checkout = true;
+  if (cartItemCount > 0) funnelUpdate.had_cart = true;
+  if (status === "checkout") funnelUpdate.reached_checkout = true;
+  const { error: funnelUpdateError } = await admin
+    .from("store_visitor_sessions")
+    .update(funnelUpdate)
+    .eq("seller_id", sellerId)
+    .eq("visitor_id", visitorId)
+    .eq("session_date", sastToday());
+  if (funnelUpdateError) console.error("storefront heartbeat session-log funnel update failed:", funnelUpdateError);
+
   // The day's FIRST heartbeat (the upsert above, ignoreDuplicates: true)
   // almost always lands before a checkout visitor has typed their name or
   // email, so without this, that identity was captured live in
@@ -187,15 +208,18 @@ export async function POST(req: NextRequest) {
   // checkout and then left without paying was completely unidentifiable
   // after the fact. Only ever overwrites with a real value, never blanks
   // one back out if a later heartbeat happens to arrive without it.
-  if (customerName) sessionUpdate.customer_name = customerName;
-  if (customerEmail) sessionUpdate.customer_email = customerEmail;
-  const { error: sessionUpdateError } = await admin
-    .from("store_visitor_sessions")
-    .update(sessionUpdate)
-    .eq("seller_id", sellerId)
-    .eq("visitor_id", visitorId)
-    .eq("session_date", sastToday());
-  if (sessionUpdateError) console.error("storefront heartbeat session-log update failed:", sessionUpdateError);
+  if (customerName || customerEmail) {
+    const identityUpdate: Record<string, unknown> = {};
+    if (customerName) identityUpdate.customer_name = customerName;
+    if (customerEmail) identityUpdate.customer_email = customerEmail;
+    const { error: identityUpdateError } = await admin
+      .from("store_visitor_sessions")
+      .update(identityUpdate)
+      .eq("seller_id", sellerId)
+      .eq("visitor_id", visitorId)
+      .eq("session_date", sastToday());
+    if (identityUpdateError) console.error("storefront heartbeat session-log identity update failed:", identityUpdateError);
+  }
 
   if (cartItemCount > 0) {
     const { error: cartTimeError } = await admin
