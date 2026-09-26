@@ -43,6 +43,16 @@ const EVENT_TYPES = new Set([
   // list, StorefrontEventType, and the DB check constraint) as every
   // event set above.
   "reviews_link_clicked", "reviews_page_viewed",
+  // Storewide product interest + on-site search insight -- same three-
+  // places-in-sync requirement as every event set above. product_viewed
+  // fires once per real product-detail-page visit (any entry path: grid,
+  // search result, wishlist, direct link -- see FourRegnStore.tsx's own
+  // comment on the mount effect), product_added_to_cart fires on every
+  // genuine (non-gift-promo) add-to-cart, and site_search_performed
+  // captures both a settled in-popup query and a landed-on /search page,
+  // including zero-result searches -- the "what don't we stock that
+  // people are looking for" signal that was previously invisible.
+  "product_viewed", "product_added_to_cart", "site_search_performed",
 ]);
 
 // Normalized first-touch source buckets this endpoint will accept as-is;
@@ -85,6 +95,10 @@ function safeEventMetadata(value: unknown): Record<string, string | number | boo
     // once a seller reorders delivery methods, so checkout_pay_clicked
     // records the name instead.
     "fulfillment", "paymentMethod", "shippingOption", "previousPaymentStatus", "failed",
+    // Product interest (product_viewed/product_added_to_cart -- productId/
+    // productName already covered above) and on-site search insight
+    // (site_search_performed).
+    "qty", "query", "resultCount",
   ]);
   const result: Record<string, string | number | boolean | null> = {};
   for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {

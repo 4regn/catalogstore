@@ -1113,6 +1113,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   const teesSaleProductViewedTrackedRef = useRef("");
   const cartBoosterImpressionRef = useRef("");
   const cartBoosterUnlockedRef = useRef(false);
+  // Storewide (not promo-scoped) product-interest + search tracking --
+  // see the mount effects below for what each dedupes against.
+  const productViewedTrackedRef = useRef("");
+  const searchPageTrackedRef = useRef("");
+  const lastTrackedPopupSearchRef = useRef("");
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const wishlistStorageKey = seller?.subdomain ? `catalogstore-wishlist-v1:${seller.subdomain.toLowerCase()}` : null;
@@ -1547,6 +1552,13 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     });
     if (!giftTag && teesSaleActive && seller?.id && pInCat(product, TEES_SALE_COLLECTION)) {
       trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_added_to_cart", metadata: { productId: product.id, productName: product.name } });
+    }
+    // Storewide "which products do shoppers actually add to cart" -- excludes
+    // gift-tagged promo freebies (same reasoning as tees_sale_added_to_cart
+    // above: a claimed free cap isn't real product demand, it's a promo
+    // mechanic) so this stays a clean signal of genuine interest.
+    if (!giftTag && seller?.id) {
+      trackStorefrontEvent({ sellerId: seller.id, eventType: "product_added_to_cart", metadata: { productId: product.id, productName: product.name, qty } });
     }
   };
   const removeFromCart = (idx: number) => setCart((prev) => prev.filter((_, i) => i !== idx));
@@ -2152,6 +2164,65 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
     trackStorefrontEvent({ sellerId: seller.id, eventType: "tees_sale_product_viewed", metadata: { productId: initialActiveProduct.id, productName: initialActiveProduct.name } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teesSaleActive, mode, initialActiveProduct?.id, seller?.id]);
+
+  // Storewide "which products do shoppers actually look at" -- unlike
+  // tees_sale_product_viewed above (one promo's own funnel), this fires for
+  // EVERY product-detail-page visit regardless of how they got there: a
+  // product grid click, a search result, a wishlist item, or a direct/
+  // shared link all land here the same way (mode==="product" +
+  // initialActiveProduct, a real server-rendered route -- see goToProduct's
+  // own comment on why every product has a real URL), so this single mount
+  // effect is a more complete signal than instrumenting each click site.
+  useEffect(() => {
+    if (!seller?.id || mode !== "product" || !initialActiveProduct) return;
+    if (productViewedTrackedRef.current === initialActiveProduct.id) return;
+    productViewedTrackedRef.current = initialActiveProduct.id;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "product_viewed", metadata: { productId: initialActiveProduct.id, productName: initialActiveProduct.name } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, initialActiveProduct?.id, seller?.id]);
+
+  // "What are shoppers searching for" -- fires once per distinct query when
+  // the dedicated /search results page itself loads (mode==="search"),
+  // which every real search commit funnels through (pressing Enter in
+  // either search bar, "View all N results", or a direct/shared/bookmarked
+  // search URL all navigate here -- see the popup form's own comment).
+  // resultCount uses totalProductCount (the full match count, not just this
+  // page), so a genuinely empty search shows up as exactly that -- the
+  // "shoppers are looking for something we don't stock" signal this exists
+  // for.
+  useEffect(() => {
+    if (!seller?.id || mode !== "search") return;
+    const q = (initialSearchQuery || "").trim();
+    if (!q) return;
+    const key = q.toLowerCase();
+    if (searchPageTrackedRef.current === key) return;
+    searchPageTrackedRef.current = key;
+    trackStorefrontEvent({ sellerId: seller.id, eventType: "site_search_performed", metadata: { query: q.slice(0, 100), resultCount: totalProductCount ?? 0, source: "results_page" } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, initialSearchQuery, seller?.id]);
+
+  // Same signal, but for a search that's typed into the header popup and
+  // settles WITHOUT necessarily being committed (no Enter, no result
+  // clicked, popup just closed) -- exactly the case the effect above can't
+  // see, and often the most telling one: someone typed something, saw the
+  // (possibly zero) results, and left. Debounced 700ms after the last
+  // keystroke; closing the popup or navigating away (both flip showSearch
+  // false) cancels the pending timeout via this effect's own cleanup before
+  // it ever fires, so a search that WAS committed (Enter/View all/clicked a
+  // result) is not double-counted from here as well.
+  useEffect(() => {
+    if (!showSearch || !seller?.id) return;
+    const q = searchQuery.trim();
+    if (q.length < 2) return;
+    const timer = window.setTimeout(() => {
+      const key = q.toLowerCase();
+      if (lastTrackedPopupSearchRef.current === key) return;
+      lastTrackedPopupSearchRef.current = key;
+      trackStorefrontEvent({ sellerId: seller.id, eventType: "site_search_performed", metadata: { query: q.slice(0, 100), resultCount: searched ? searched.length : 0, source: "popup" } });
+    }, 700);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSearch, searchQuery, seller?.id]);
 
   useEffect(() => {
     if (!flashCapActive || !flashCapOnTruckerCapsPage || !seller?.id) return;

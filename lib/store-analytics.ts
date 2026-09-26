@@ -870,6 +870,136 @@ export async function getReviewsPageAnalytics(admin: SupabaseClient, sellerId: s
   };
 }
 
+export type ProductEngagementRow = { productId: string; name: string; count: number };
+export type ProductEngagementAnalytics = {
+  rangeDays: number;
+  topViewed: ProductEngagementRow[];
+  topAddedToCart: ProductEngagementRow[];
+};
+
+const PRODUCT_ENGAGEMENT_LIMIT = 15;
+
+/* "Which products do shoppers actually look at" and "which do they
+   actually add to cart" -- reads the storewide product_viewed/
+   product_added_to_cart events (see FourRegnStore.tsx's own comment on
+   both: product_viewed fires once per PDP visit regardless of entry path,
+   product_added_to_cart fires on every genuine, non-promo add-to-cart).
+   topAddedToCart counts total units added (qty), not just the number of
+   add actions, so one customer buying 3 of something counts properly
+   against one customer buying 1 each of three different things. */
+export async function getProductEngagementAnalytics(admin: SupabaseClient, sellerId: string, range: { startDate: string; endDate: string }): Promise<ProductEngagementAnalytics> {
+  const MAX_RANGE_DAYS = 366;
+  const dateStrings = dateStringsBetween(range.startDate, range.endDate).slice(-MAX_RANGE_DAYS);
+  const startDate = dateStrings[0];
+  const endDate = dateStrings[dateStrings.length - 1];
+  const rangeStartIso = sastDayStartUtc(startDate).toISOString();
+  const rangeEndIso = new Date(sastDayStartUtc(endDate).getTime() + 86_400_000).toISOString();
+
+  const [viewRows, cartRows] = await Promise.all([
+    fetchAllRows<{ event_metadata: Record<string, unknown> | null }>(
+      admin, "store_visitor_events", "event_metadata", (q) =>
+        q.eq("seller_id", sellerId).eq("event_type", "product_viewed").gte("created_at", rangeStartIso).lt("created_at", rangeEndIso)
+    ),
+    fetchAllRows<{ event_metadata: Record<string, unknown> | null }>(
+      admin, "store_visitor_events", "event_metadata", (q) =>
+        q.eq("seller_id", sellerId).eq("event_type", "product_added_to_cart").gte("created_at", rangeStartIso).lt("created_at", rangeEndIso)
+    ),
+  ]);
+
+  const tally = (rows: { event_metadata: Record<string, unknown> | null }[], weight: (meta: Record<string, unknown>) => number) => {
+    const map = new Map<string, { name: string; count: number }>();
+    for (const row of rows) {
+      const meta = row.event_metadata || {};
+      const productId = typeof meta.productId === "string" ? meta.productId : null;
+      if (!productId) continue;
+      const productName = typeof meta.productName === "string" ? meta.productName : null;
+      const existing = map.get(productId) || { name: productName || "Unknown product", count: 0 };
+      existing.count += weight(meta);
+      if (productName) existing.name = productName;
+      map.set(productId, existing);
+    }
+    return Array.from(map.entries())
+      .map(([productId, { name, count }]) => ({ productId, name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, PRODUCT_ENGAGEMENT_LIMIT);
+  };
+
+  return {
+    rangeDays: dateStrings.length,
+    topViewed: tally(viewRows, () => 1),
+    topAddedToCart: tally(cartRows, (meta) => Math.max(1, Math.round(Number(meta.qty)) || 1)),
+  };
+}
+
+export type SearchTermRow = { query: string; count: number; avgResultCount: number; zeroResultCount: number };
+export type SearchInsightsAnalytics = {
+  rangeDays: number;
+  totals: { searches: number; zeroResultSearches: number };
+  topSearches: SearchTermRow[];
+  topZeroResultSearches: SearchTermRow[];
+};
+
+const SEARCH_INSIGHTS_LIMIT = 20;
+
+/* "What are shoppers searching for" -- and, just as valuable, "what are
+   they searching for that we don't have": topZeroResultSearches is the
+   same term list filtered to queries that returned 0 matches at least
+   once, ranked by how often that happened. Reads site_search_performed,
+   fired from two places (see FourRegnStore.tsx's own comments): a settled
+   in-popup query (source: "popup", catches a search that was never
+   committed to a full results page) and a /search page load (source:
+   "results_page", catches every committed search plus direct/shared
+   links). Both count here -- this is "how many times this term was
+   searched", not "how many unique search sessions", so a term typed in the
+   popup and then also landed on via Enter genuinely counts twice; the
+   ranking this produces is still the right one for "what's popular", just
+   not a literal session count. Terms are case-folded (not otherwise
+   normalized) so "Hoodie" and "hoodie" merge into one row. */
+export async function getSearchInsightsAnalytics(admin: SupabaseClient, sellerId: string, range: { startDate: string; endDate: string }): Promise<SearchInsightsAnalytics> {
+  const MAX_RANGE_DAYS = 366;
+  const dateStrings = dateStringsBetween(range.startDate, range.endDate).slice(-MAX_RANGE_DAYS);
+  const startDate = dateStrings[0];
+  const endDate = dateStrings[dateStrings.length - 1];
+  const rangeStartIso = sastDayStartUtc(startDate).toISOString();
+  const rangeEndIso = new Date(sastDayStartUtc(endDate).getTime() + 86_400_000).toISOString();
+
+  const rows = await fetchAllRows<{ event_metadata: Record<string, unknown> | null }>(
+    admin, "store_visitor_events", "event_metadata", (q) =>
+      q.eq("seller_id", sellerId).eq("event_type", "site_search_performed").gte("created_at", rangeStartIso).lt("created_at", rangeEndIso)
+  );
+
+  const termMap = new Map<string, { query: string; count: number; resultSum: number; zeroCount: number }>();
+  let searches = 0;
+  let zeroResultSearches = 0;
+  for (const row of rows) {
+    const meta = row.event_metadata || {};
+    const rawQuery = typeof meta.query === "string" ? meta.query.trim() : "";
+    if (!rawQuery) continue;
+    searches++;
+    const key = rawQuery.toLowerCase();
+    const resultCount = Math.max(0, Math.round(Number(meta.resultCount)) || 0);
+    const existing = termMap.get(key) || { query: rawQuery, count: 0, resultSum: 0, zeroCount: 0 };
+    existing.count++;
+    existing.resultSum += resultCount;
+    if (resultCount === 0) { existing.zeroCount++; zeroResultSearches++; }
+    termMap.set(key, existing);
+  }
+
+  const allTerms: SearchTermRow[] = Array.from(termMap.values()).map((t) => ({
+    query: t.query,
+    count: t.count,
+    avgResultCount: t.count ? Math.round(t.resultSum / t.count) : 0,
+    zeroResultCount: t.zeroCount,
+  }));
+
+  return {
+    rangeDays: dateStrings.length,
+    totals: { searches, zeroResultSearches },
+    topSearches: [...allTerms].sort((a, b) => b.count - a.count).slice(0, SEARCH_INSIGHTS_LIMIT),
+    topZeroResultSearches: allTerms.filter((t) => t.zeroResultCount > 0).sort((a, b) => b.zeroResultCount - a.zeroResultCount).slice(0, SEARCH_INSIGHTS_LIMIT),
+  };
+}
+
 function isLikelyNoisyLocation(loc: TopLocation) {
   const country = (loc.country || "").toUpperCase();
   const city = (loc.city || "").toLowerCase();

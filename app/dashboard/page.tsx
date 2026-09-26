@@ -15,7 +15,7 @@ import SupportChat from "../components/SupportChat";
 import CustomersPanel from "./components/CustomersPanel";
 import { effectiveStoreConfig, pickTemplateFields, omitTemplateFields } from "../../lib/template-config";
 import { UNIK_TEMPLATE_ID, FOURREGN_TEMPLATE_ID } from "../../lib/store-template-access";
-import type { FullAnalytics, CheckoutFunnelAnalytics, TrafficSourceAnalytics, ReviewsPageAnalytics } from "../../lib/store-analytics";
+import type { FullAnalytics, CheckoutFunnelAnalytics, TrafficSourceAnalytics, ReviewsPageAnalytics, ProductEngagementAnalytics, SearchInsightsAnalytics } from "../../lib/store-analytics";
 import { buildFourRegnTracking, FOUR_REGN_TRACKING_STAGES } from "../../lib/four-regn-tracking";
 import { FOUR_REGN_DELIVERY_METHOD_ORDER, normaliseFourRegnDeliveryMethodOrder } from "../../lib/four-regn-shipping";
 import { UNRESOLVED_GATEWAY_PAYMENT_METHODS } from "../../lib/order-payment-methods";
@@ -488,6 +488,10 @@ export default function Dashboard() {
   const [trafficSourceLoading, setTrafficSourceLoading] = useState(false);
   const [reviewsPageAnalytics, setReviewsPageAnalytics] = useState<ReviewsPageAnalytics | null>(null);
   const [reviewsPageAnalyticsLoading, setReviewsPageAnalyticsLoading] = useState(false);
+  const [productEngagementAnalytics, setProductEngagementAnalytics] = useState<ProductEngagementAnalytics | null>(null);
+  const [productEngagementLoading, setProductEngagementLoading] = useState(false);
+  const [searchInsightsAnalytics, setSearchInsightsAnalytics] = useState<SearchInsightsAnalytics | null>(null);
+  const [searchInsightsLoading, setSearchInsightsLoading] = useState(false);
   const funnelRange = useMemo(() => {
     const today = sastToday();
     const addDays = (d: string, n: number) => new Date(new Date(d + "T00:00:00Z").getTime() + n * 86_400_000).toISOString().slice(0, 10);
@@ -1283,6 +1287,44 @@ export default function Dashboard() {
       setReviewsPageAnalyticsLoading(false);
     })();
   }, [loading, tab, seller?.subdomain, seller?.template, funnelRange.startDate, funnelRange.endDate]);
+
+  // Which products shoppers actually look at vs. actually add to cart --
+  // same shared funnelRange picker as the cards above. See
+  // getProductEngagementAnalytics. Not 4regn-gated: product_viewed/
+  // product_added_to_cart fire from the shared storefront cart logic, so
+  // this works for any seller once they have events recorded.
+  useEffect(() => {
+    if (loading || tab !== "analytics") return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setProductEngagementLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/product-engagement-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, startDate: funnelRange.startDate, endDate: funnelRange.endDate }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setProductEngagementAnalytics(data);
+      } catch {}
+      setProductEngagementLoading(false);
+    })();
+  }, [loading, tab, funnelRange.startDate, funnelRange.endDate]);
+
+  // What shoppers actually type into the search box -- including searches
+  // that turned up nothing, the clearest "we don't stock this" signal
+  // there is. Same shared funnelRange picker. See getSearchInsightsAnalytics.
+  useEffect(() => {
+    if (loading || tab !== "analytics") return;
+    (async () => {
+      const token = await getAccessToken();
+      if (!token) return;
+      setSearchInsightsLoading(true);
+      try {
+        const res = await fetch("/api/dashboard/search-insights-analytics", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ access_token: token, startDate: funnelRange.startDate, endDate: funnelRange.endDate }) });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setSearchInsightsAnalytics(data);
+      } catch {}
+      setSearchInsightsLoading(false);
+    })();
+  }, [loading, tab, funnelRange.startDate, funnelRange.endDate]);
 
   // 4regn-only, same lazy-on-tab-open pattern as the full analytics fetch
   // above. See app/api/dashboard/flash-cap-analytics/route.ts.
@@ -5911,6 +5953,130 @@ export default function Dashboard() {
                       <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading reviews page analytics&hellip;</div>
                     )}
                     </>
+                  )}
+
+                  {/* PRODUCT INTEREST -- which products shoppers actually
+                      look at (product_viewed, any entry path) vs. actually
+                      add to cart (product_added_to_cart, real units, promo
+                      freebies excluded). Shares the range picker above. */}
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>
+                    Product interest &middot; {funnelRange.startDate === funnelRange.endDate ? funnelRange.startDate : `${funnelRange.startDate} to ${funnelRange.endDate}`}
+                  </div>
+                  {productEngagementAnalytics && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>Most viewed</div>
+                          {productEngagementAnalytics.topViewed.length === 0 ? (
+                            <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No product views recorded in this range yet.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                              {productEngagementAnalytics.topViewed.map((p) => {
+                                const max = Math.max(1, ...productEngagementAnalytics.topViewed.map((x) => x.count));
+                                return (
+                                  <div key={p.productId}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span>{p.name}</span><span style={{ fontWeight: 700 }}>{p.count}</span></div>
+                                    <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                      <div style={{ width: `${Math.max(4, Math.round((p.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #7aa2ff, #60a5fa)", borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>Most added to cart</div>
+                          {productEngagementAnalytics.topAddedToCart.length === 0 ? (
+                            <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No add-to-cart activity recorded in this range yet.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                              {productEngagementAnalytics.topAddedToCart.map((p) => {
+                                const max = Math.max(1, ...productEngagementAnalytics.topAddedToCart.map((x) => x.count));
+                                return (
+                                  <div key={p.productId}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span>{p.name}</span><span style={{ fontWeight: 700 }}>{p.count} unit{p.count === 1 ? "" : "s"}</span></div>
+                                    <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                      <div style={{ width: `${Math.max(4, Math.round((p.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #22c55e, #16a34a)", borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {productEngagementLoading && !productEngagementAnalytics && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading product interest&hellip;</div>
+                  )}
+
+                  {/* SEARCH INSIGHTS -- what shoppers actually type into the
+                      search box, including searches that returned nothing
+                      -- the clearest "we don't stock this" signal there is.
+                      Shares the range picker above. */}
+                  <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>
+                    Search insights &middot; {funnelRange.startDate === funnelRange.endDate ? funnelRange.startDate : `${funnelRange.startDate} to ${funnelRange.endDate}`}
+                  </div>
+                  {searchInsightsAnalytics && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, boxShadow: "0 8px 20px -12px rgba(0,0,0,0.25)", marginBottom: 16 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, marginBottom: 20 }}>
+                        <div style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text)", letterSpacing: "-0.02em" }}>{searchInsightsAnalytics.totals.searches.toLocaleString("en-ZA")}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>Searches</div>
+                        </div>
+                        <div style={{ padding: "14px 14px", background: "var(--panel-2)", border: "1px solid var(--border)", borderRadius: 12 }}>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: "#f87171", letterSpacing: "-0.02em" }}>{searchInsightsAnalytics.totals.zeroResultSearches.toLocaleString("en-ZA")}</div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.04em", fontWeight: 700, marginTop: 4 }}>Returned nothing</div>
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>Top searches</div>
+                          {searchInsightsAnalytics.topSearches.length === 0 ? (
+                            <p style={{ fontSize: 12, color: "var(--muted-2)" }}>No searches recorded in this range yet.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                              {searchInsightsAnalytics.topSearches.map((s) => {
+                                const max = Math.max(1, ...searchInsightsAnalytics.topSearches.map((x) => x.count));
+                                return (
+                                  <div key={s.query}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span style={{ textTransform: "capitalize" as const }}>{s.query}</span><span style={{ fontWeight: 700 }}>{s.count} &middot; avg {s.avgResultCount} result{s.avgResultCount === 1 ? "" : "s"}</span></div>
+                                    <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                      <div style={{ width: `${Math.max(4, Math.round((s.count / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #7aa2ff, #60a5fa)", borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--muted-2)", textTransform: "uppercase" as const, letterSpacing: "0.06em", fontWeight: 700, marginBottom: 10 }}>Searched, found nothing</div>
+                          {searchInsightsAnalytics.topZeroResultSearches.length === 0 ? (
+                            <p style={{ fontSize: 12, color: "var(--muted-2)" }}>Every search in this range turned up at least one product.</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column" as const, gap: 8 }}>
+                              {searchInsightsAnalytics.topZeroResultSearches.map((s) => {
+                                const max = Math.max(1, ...searchInsightsAnalytics.topZeroResultSearches.map((x) => x.zeroResultCount));
+                                return (
+                                  <div key={s.query}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}><span style={{ textTransform: "capitalize" as const }}>{s.query}</span><span style={{ fontWeight: 700, color: "#f87171" }}>{s.zeroResultCount}&times;</span></div>
+                                    <div style={{ height: 5, borderRadius: 3, background: "var(--input-bg)", overflow: "hidden" as const }}>
+                                      <div style={{ width: `${Math.max(4, Math.round((s.zeroResultCount / max) * 100))}%`, height: "100%", background: "linear-gradient(90deg, #f87171, #fb923c)", borderRadius: 3 }} />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {searchInsightsLoading && !searchInsightsAnalytics && (
+                    <div style={{ padding: "20px 22px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 16, marginBottom: 16, fontSize: 12, color: "var(--muted-2)" }}>Loading search insights&hellip;</div>
                   )}
 
                   {/* BEST SELLERS */}

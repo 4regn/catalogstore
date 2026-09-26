@@ -69,7 +69,12 @@ export type StorefrontEventType =
   // a page load (and a shared/bookmarked /reviews link has no click at
   // all), so a seller can see both "how many people are drawn to click"
   // and "how many actually land on the page".
-  | "reviews_link_clicked" | "reviews_page_viewed";
+  | "reviews_link_clicked" | "reviews_page_viewed"
+  // Storewide product interest + on-site search insight -- see the DB
+  // check constraint's own comment (supabase/migrations/*_product_search_analytics.sql)
+  // for what each one captures and why product_viewed/product_added_to_cart
+  // aren't scoped to any one promo the way tees_sale_*/flash_cap_* are.
+  | "product_viewed" | "product_added_to_cart" | "site_search_performed";
 
 export function trackStorefrontEvent(args: {
   sellerId: string;
