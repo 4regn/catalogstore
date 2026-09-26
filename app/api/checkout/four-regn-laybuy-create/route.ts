@@ -102,14 +102,22 @@ export async function POST(req: NextRequest) {
   const origin = safeOrigin(returnOrigin);
   const checkoutBasePath = storePath(origin, slug, "/checkout");
   const depositAmountCents = Math.round(deposit * 100);
+  // Same restore mechanism /api/checkout/yoco-redirect's own cancelUrl/
+  // failureUrl rely on (see that route's own comment) -- CheckoutPageClient's
+  // load() only refills the contact/address form and cart when a cancelled/
+  // failed return link carries both orderId (it re-fetches the order for
+  // the form fields) and cart= (the actual cart contents). Missing either
+  // one here was leaving a customer bounced back from a cancelled/declined
+  // deposit staring at a blank checkout, having to retype everything.
+  const cartEncoded = Buffer.from(JSON.stringify(order.items || [])).toString("base64");
 
   try {
     const checkout = await createYocoCheckout({
       amountCents: depositAmountCents,
       metadata: buildFourRegnLaybuyDepositMetadata(order.id, depositAmountCents),
       successUrl: `${origin}${checkoutBasePath}?paid=${order.id}`,
-      cancelUrl: `${origin}${checkoutBasePath}?cancelled=1`,
-      failureUrl: `${origin}${checkoutBasePath}?failed=1`,
+      cancelUrl: `${origin}${checkoutBasePath}?cancelled=1&orderId=${order.id}&cart=${cartEncoded}`,
+      failureUrl: `${origin}${checkoutBasePath}?failed=1&orderId=${order.id}&cart=${cartEncoded}`,
       lineItems: [{
         displayName: `4REGN Lay-Buy deposit — Order ${order.order_number || order.id.slice(0, 8)}`,
         quantity: 1,
