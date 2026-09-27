@@ -4636,7 +4636,7 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
             everywhere else in this file; hides the whole section only if
             BOTH rows are empty. */}
         {isHomeView && (() => {
-          const resolveRow = (configuredSlides: string[] | undefined, exactCategory: string) => {
+          const resolveRow = (configuredSlides: string[] | undefined, exactCategory: string, exclude?: (p: Product) => boolean) => {
             const href = sp(`/collections/${collectionSlug(exactCategory)}`);
             if (configuredSlides && configuredSlides.length > 0) {
               const images = configuredSlides
@@ -4645,11 +4645,20 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                 .slice(0, 12);
               return { images, href };
             }
-            const images = products.filter((p) => p.image_url && pInCat(p, exactCategory)).map((p) => p.image_url!).slice(0, 12);
+            const images = products.filter((p) => p.image_url && pInCat(p, exactCategory) && !exclude?.(p)).map((p) => p.image_url!).slice(0, 12);
             return { images, href };
           };
           const hoodie = resolveRow(config.winter_marquee_hoodie_slides, "BACK & FRONT PRINTED HOODIES");
-          const tee = resolveRow(config.winter_marquee_tee_slides, "OVERSIZED PREMIUM TEES");
+          // The 28 "New Oversized Premium Tees" products (Giant Face tees)
+          // already have their own dedicated homepage banner
+          // (FourRegnGiantFaceTeesBanner.tsx) -- excluded here (only from
+          // this marquee's automatic fallback, not from the collection
+          // itself) so they don't also crowd out the older catalog (Jhene
+          // Aiko, J. Cole, etc.) in this row, which is capped at 12 images.
+          // Every one of the 28 shares the exact title suffix "OVERSIZED TEE
+          // NEW" (see the batch-creation SQL), a reliable, unique marker no
+          // pre-existing product has.
+          const tee = resolveRow(config.winter_marquee_tee_slides, "OVERSIZED PREMIUM TEES", (p) => p.name.endsWith("OVERSIZED TEE NEW"));
           if (hoodie.images.length === 0 && tee.images.length === 0) return null;
           return (
             <EditSection id="winter-sale-marquee" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
@@ -6326,10 +6335,12 @@ function WinterCoverflow({
 // on a doubled list), unlike WinterCoverflow above -- the original section
 // used a plain CSS keyframe marquee, not the scale/perspective JS effect
 // WinterCoverflow has, so this stays that much simpler to match it.
-// Copy/colors/links below are the REAL values from this store's own
-// templates/index.json (not the section file's generic schema defaults --
-// e.g. the schema's own default title is "STAY WARM. STAY" / "A LEGEND.",
-// but the live site actually runs "STAY WARM." / "THIS WINTER").
+// Copy/colors/links below are the REAL values this store actually runs
+// (not templates/index.json's generic schema defaults, e.g. its own
+// default title is "STAY WARM. STAY" / "A LEGEND.") -- updated from the
+// original "Winter Drop" / "STAY WARM. THIS WINTER" copy once the season
+// moved on, so the section header agrees with the "BIG SPRING SALE" badges
+// already shown in the rows below it.
 function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { hoodieImages: string[]; teeImages: string[]; hoodieHref: string; teeHref: string }) {
   const hoodieSlides = hoodieImages.length > 0 ? [...hoodieImages, ...hoodieImages] : [];
   const teeSlides = teeImages.length > 0 ? [...teeImages, ...teeImages] : [];
@@ -6339,9 +6350,9 @@ function WinterSaleMarquee({ hoodieImages, teeImages, hoodieHref, teeHref }: { h
     <div className="fr-fwm">
       <div className="fr-fwm-logo">4REGN</div>
       <div className="fr-fwm-hero">
-        <div className="fr-fwm-eyebrow">Winter Drop</div>
-        <h2 className="fr-fwm-title">STAY WARM. <span className="fr-fwm-thin">THIS WINTER</span></h2>
-        <p className="fr-fwm-sub">Heavyweight hoodies and oversized premium tees repping the artists you love. Mix, match and save this winter.</p>
+        <div className="fr-fwm-eyebrow">Spring Drop</div>
+        <h2 className="fr-fwm-title">MIX &amp; MATCH. <span className="fr-fwm-thin">THIS SPRING</span></h2>
+        <p className="fr-fwm-sub">Heavyweight hoodies and oversized premium tees repping the artists you love. Mix, match and save this spring.</p>
       </div>
       <div className="fr-fwm-rows">
         {hoodieSlides.length > 0 && (
