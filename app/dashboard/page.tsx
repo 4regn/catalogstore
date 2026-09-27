@@ -536,6 +536,10 @@ export default function Dashboard() {
   const [bulkOriginalPrice, setBulkOriginalPrice] = useState("");
   const [bulkEditDescription, setBulkEditDescription] = useState(false);
   const [bulkDescription, setBulkDescription] = useState("");
+  const [bulkEditTags, setBulkEditTags] = useState(false);
+  const [bulkTagsMode, setBulkTagsMode] = useState<"add" | "remove">("add");
+  const [bulkTagsToAdd, setBulkTagsToAdd] = useState<string[]>([]);
+  const [bulkTagsToRemove, setBulkTagsToRemove] = useState<string[]>([]);
   const [bulkApplying, setBulkApplying] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
@@ -2206,16 +2210,19 @@ export default function Dashboard() {
   };
 
   const applyBulkPrice = async () => {
-    if (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) { alert("Choose at least one field to update."); return; }
+    if (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription && !bulkEditTags) { alert("Choose at least one field to update."); return; }
     const value = parseFloat(bulkValue);
     if (bulkEditSellingPrice && (!Number.isFinite(value) || value < 0)) { alert("Enter a valid selling price adjustment."); return; }
     const originalPrice = bulkOriginalPrice.trim() === "" ? null : parseFloat(bulkOriginalPrice);
     if (bulkEditOriginalPrice && originalPrice !== null && (!Number.isFinite(originalPrice) || originalPrice < 0)) { alert("Enter a valid original price, or leave it empty to remove the original price."); return; }
+    if (bulkEditTags && bulkTagsMode === "add" && bulkTagsToAdd.length === 0) { alert("Add at least one tag to apply."); return; }
+    if (bulkEditTags && bulkTagsMode === "remove" && bulkTagsToRemove.length === 0) { alert("Add at least one tag to remove."); return; }
     const targets = products.filter((p) => selectedProductIds.has(p.id));
     if (targets.length === 0) return;
     if (bulkEditDescription && bulkDescription === "" && !confirm(`Remove the entire description from ${targets.length} selected product${targets.length === 1 ? "" : "s"}?`)) return;
     setBulkApplying(true);
     try {
+      const removeKeys = new Set(bulkTagsToRemove.map((t) => t.toLowerCase()));
       const updates = targets.map((p) => {
         let newPrice = p.price;
         if (bulkEditSellingPrice && bulkMode === "percent") {
@@ -2231,6 +2238,11 @@ export default function Dashboard() {
         if (bulkEditSellingPrice) changes.price = newPrice;
         if (bulkEditOriginalPrice) changes.old_price = originalPrice;
         if (bulkEditDescription) changes.description = bulkDescription;
+        if (bulkEditTags) {
+          changes.tags = bulkTagsMode === "add"
+            ? cleanProductTags([...(p.tags || []), ...bulkTagsToAdd])
+            : (p.tags || []).filter((t) => !removeKeys.has(t.toLowerCase()));
+        }
         return { id: p.id, changes };
       });
       const results = await Promise.all(updates.map((u) => supabase.from("products").update(u.changes).eq("id", u.id)));
@@ -2247,6 +2259,10 @@ export default function Dashboard() {
       setBulkEditSellingPrice(true);
       setBulkEditOriginalPrice(false);
       setBulkEditDescription(false);
+      setBulkEditTags(false);
+      setBulkTagsMode("add");
+      setBulkTagsToAdd([]);
+      setBulkTagsToRemove([]);
     } catch (error: any) {
       console.error("Bulk product update failed", error);
       alert(`Bulk update failed: ${error?.message || "unknown error"}`);
@@ -4076,9 +4092,29 @@ export default function Dashboard() {
                     </>}
                   </div>
 
+                  <div style={{ padding: 16, border: "1px solid var(--border)", borderRadius: 14, marginBottom: 14 }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer", marginBottom: bulkEditTags ? 14 : 0 }}>
+                      <input type="checkbox" checked={bulkEditTags} onChange={(e) => setBulkEditTags(e.target.checked)} style={{ width: 17, height: 17, accentColor: N }} />
+                      <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" as const }}>Update tags</span>
+                    </label>
+                    {bulkEditTags && <>
+                      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                        {([{ key: "add", label: "Add tags" }, { key: "remove", label: "Remove tags" }] as const).map((m) => (
+                          <button key={m.key} onClick={() => setBulkTagsMode(m.key)} style={{ flex: 1, padding: "10px 8px", background: bulkTagsMode === m.key ? "rgba(255,107,53,0.1)" : "var(--panel)", border: bulkTagsMode === m.key ? "1px solid rgba(255,107,53,0.3)" : "1px solid var(--border)", borderRadius: 10, color: bulkTagsMode === m.key ? N : "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>{m.label}</button>
+                        ))}
+                      </div>
+                      {bulkTagsMode === "add" ? (
+                        <ProductTagPicker value={bulkTagsToAdd} onChange={setBulkTagsToAdd} suggestions={productTagSuggestions} accent={N} compact />
+                      ) : (
+                        <ProductTagPicker value={bulkTagsToRemove} onChange={setBulkTagsToRemove} suggestions={productTagSuggestions} accent={N} compact />
+                      )}
+                      <p style={{ fontSize: 10, color: "var(--muted-2)", margin: "8px 0 0", lineHeight: 1.5 }}>{bulkTagsMode === "add" ? "These tags will be added to every selected product, alongside whatever tags they already have." : "These tags will be removed from every selected product, if present. Other tags are left untouched."}</p>
+                    </>}
+                  </div>
+
                   <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
                     <button onClick={() => setShowBulkPrice(false)} style={{ flex: 1, padding: "12px", background: "var(--panel)", border: "1px solid var(--border)", borderRadius: 100, color: "var(--muted)", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase" as const }}>Cancel</button>
-                    <button onClick={applyBulkPrice} disabled={bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) || (bulkEditSellingPrice && !bulkValue)} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying ? "not-allowed" : "pointer", opacity: bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription) || (bulkEditSellingPrice && !bulkValue) ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply changes"}</button>
+                    <button onClick={applyBulkPrice} disabled={bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription && !bulkEditTags) || (bulkEditSellingPrice && !bulkValue) || (bulkEditTags && bulkTagsMode === "add" && bulkTagsToAdd.length === 0) || (bulkEditTags && bulkTagsMode === "remove" && bulkTagsToRemove.length === 0)} style={{ flex: 1, padding: "12px", background: G, border: "none", borderRadius: 100, color: "#fff", fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: bulkApplying ? "not-allowed" : "pointer", opacity: bulkApplying || (!bulkEditSellingPrice && !bulkEditOriginalPrice && !bulkEditDescription && !bulkEditTags) || (bulkEditSellingPrice && !bulkValue) || (bulkEditTags && bulkTagsMode === "add" && bulkTagsToAdd.length === 0) || (bulkEditTags && bulkTagsMode === "remove" && bulkTagsToRemove.length === 0) ? 0.6 : 1, textTransform: "uppercase" as const }}>{bulkApplying ? "Applying..." : "Apply changes"}</button>
                   </div>
                 </div>
               </div>
