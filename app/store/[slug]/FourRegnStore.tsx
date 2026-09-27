@@ -51,6 +51,10 @@ const FourRegnSalesPopup = dynamic(() => import("./FourRegnSalesPopup"), { ssr: 
 const FourRegnPromoCountdown = dynamic(() => import("./FourRegnPromoCountdown"), { ssr: false });
 const FourRegnTeesSaleCountdown = dynamic(() => import("./FourRegnTeesSaleCountdown"), { ssr: false });
 const FourRegnTeesSaleTimerText = dynamic(() => import("./FourRegnTeesSaleTimerText"), { ssr: false });
+// New Oversized Premium Tees homepage banner -- live countdown + rAF
+// marquee, same "nothing worth rendering server-side" reasoning as every
+// other dynamic import in this list.
+const FourRegnGiantFaceTeesBanner = dynamic(() => import("./FourRegnGiantFaceTeesBanner"), { ssr: false });
 const FourRegnCustomPrintEditor = dynamic(() => import("./FourRegnCustomPrintEditor"), { ssr: false });
 const TEES_SALE_COLLECTION = "OVERSIZED PREMIUM TEES";
 // Same instant as FourRegnTeesSaleCountdown's own TEES_SALE_END -- kept as
@@ -3176,44 +3180,11 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .fr-sbd-label{display:block;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
 .fr-sbd-divider{height:1px;background:#dcdcdc;max-width:1420px;margin:0 auto}
 
-/* Studio Collaboration -- UNIK Labs' AI Studio linked from 4regn's own
-   homepage. The right-hand "how it works" motion is an <iframe> onto the
-   REAL public/private-templates/unik-labs/how-to-demo.html (same static
-   file UNIK's own homepage already embeds, see UnikLabsIframePage.tsx for
-   the identical src-path convention) -- loading="lazy" so it doesn't
-   compete with anything above the fold, and its 14 reference images load
-   as their own document instead of bloating this page's own JS bundle.
-   No new image assets of our own here besides the two brand marks (both
-   through next/image, same "resize to what's displayed" fix already
-   applied to .fr-foot-logo above). */
-.fr-collab{background:radial-gradient(120% 140% at 82% 0%,#111,#050505 62%);color:#f4f2ee}
-.fr-collab-inner{max-width:1420px;margin:0 auto;padding:104px 32px;display:grid;grid-template-columns:1fr .86fr;gap:64px;align-items:center}
-.fr-collab-lockup{display:flex;align-items:center;gap:14px;margin-bottom:38px}
-.fr-collab-mark{font-family:var(--body);font-size:14px;font-weight:700;letter-spacing:.02em;color:#f4f2ee}
-.fr-collab-x{font-size:13px;color:rgba(244,242,238,.4)}
-.fr-collab-eyebrow{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:rgba(244,242,238,.5);margin:0 0 18px}
-.fr-collab-title{font-family:var(--body);font-size:clamp(36px,4.2vw,62px);font-weight:700;letter-spacing:-.04em;line-height:.98;text-transform:uppercase;margin:0 0 22px;text-wrap:balance}
-.fr-collab-title em{font-style:normal;color:#00c93d}
-.fr-collab-sub{font-size:15.5px;line-height:1.7;color:rgba(244,242,238,.68);max-width:44ch;margin:0 0 34px}
-.fr-collab-steps{display:flex;flex-wrap:wrap;gap:10px 0;margin:0 0 40px;padding:0;list-style:none}
-.fr-collab-steps li{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:rgba(244,242,238,.82);display:flex;align-items:center}
-.fr-collab-steps li:not(:last-child)::after{content:"→";margin:0 14px;color:rgba(244,242,238,.3);font-weight:400}
-.fr-collab-cta-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.fr-collab-cta{display:inline-flex;align-items:center;gap:10px;background:#fff;color:#0a0a0a;padding:16px 30px;border-radius:10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;text-decoration:none;transition:transform .18s ease,box-shadow .18s ease}
-.fr-collab-cta:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(0,0,0,.35)}
-.fr-collab-fine{font-size:11.5px;color:rgba(244,242,238,.42)}
-.fr-collab-fine b{color:rgba(244,242,238,.68);font-weight:700}
-.fr-collab-visual{position:relative;display:flex;justify-content:center}
-.fr-collab-visual::before{content:"";position:absolute;inset:-40px -60px;background:radial-gradient(closest-side,rgba(0,117,31,.18),transparent 70%);filter:blur(10px);z-index:0}
-.fr-collab-frame{position:relative;z-index:1;width:100%;max-width:380px;height:520px;border:0;border-radius:20px;box-shadow:0 30px 70px rgba(0,0,0,.55);background:#0a0a0a}
-
 @media(max-width:980px){
   .fr-sbd-section{padding:72px 0}
   .fr-sbd-stack{gap:54px}
   .fr-sbd-header{padding-left:18px;padding-right:18px}
   .fr-sbd-rail{padding-left:18px;padding-right:18px}
-  .fr-collab-inner{grid-template-columns:1fr;padding:72px 20px 88px;gap:52px}
-  .fr-collab-visual{order:-1}
 }
 
 @media(max-width:620px){
@@ -3225,8 +3196,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
   .fr-sbd-card{flex-basis:128px}
   .fr-sbd-circle{width:128px;height:128px}
   .fr-sbd-viewall{font-size:9px}
-  .fr-collab-frame{height:460px}
-  .fr-collab-steps{display:none}
 }
 
 .fr-section{max-width:1360px;margin:0 auto;padding:64px 40px}
@@ -3897,6 +3866,63 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
 .regn-fcap-sheet__secondary{display:block;width:100%;padding:12px;border:none;background:none;color:#8f8c94;font-size:11.5px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;cursor:pointer}
 @media(max-width:768px){.regn-fcap-dockbar{display:block}}
 @media(prefers-reduced-motion:reduce){.regn-fcap-sheet-backdrop,.regn-fcap-sheet{animation:none}.regn-fcap__fill{transition:none}}
+
+/* New Oversized Premium Tees homepage banner (FourRegnGiantFaceTeesBanner.tsx)
+   -- ported as-is from the seller-supplied snippet, fully scoped under .gfb
+   so it can't leak into (or be overridden by) anything else on the page. */
+.gfb{
+  --bg:#F5F5F3; --text:#0B0B0B; --green:#007517; --ash:#6F6A62; --line:rgba(11,11,11,.12);
+  --bgimg:none;
+  --display:'Anton','Impact','Arial Narrow Bold',sans-serif;
+  --cond:'Barlow Condensed','Arial Narrow',sans-serif;
+  --body:'Archivo','Helvetica Neue',Arial,sans-serif;
+  position:relative;overflow:hidden;background:var(--bg) var(--bgimg) center/cover no-repeat;color:var(--text);font-family:var(--body);
+  -webkit-font-smoothing:antialiased;
+}
+.gfb *,.gfb *::before,.gfb *::after{box-sizing:border-box;margin:0;padding:0}
+.gfb::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:radial-gradient(rgba(11,11,11,.035) 1px,transparent 1.4px);background-size:5px 5px}
+
+.gfb-top{position:relative;z-index:2;display:grid;grid-template-columns:1.25fr 1fr;gap:clamp(20px,4vw,64px);
+  align-items:end;padding:clamp(28px,4.5vw,64px) clamp(20px,5vw,72px) clamp(22px,3vw,40px)}
+.gfb h2{font-family:var(--display);font-weight:400;font-size:clamp(44px,6.2vw,112px);line-height:.86;letter-spacing:-.005em;text-transform:uppercase}
+.gfb-sub{font-family:var(--cond);font-weight:500;font-size:clamp(18px,1.9vw,26px);letter-spacing:.02em;color:var(--ash);margin-top:.6em;max-width:34ch;line-height:1.2}
+
+.gfb-deal{display:flex;flex-direction:column;gap:clamp(12px,1.4vw,18px)}
+.gfb-price{display:flex;align-items:baseline;gap:.35em;flex-wrap:wrap}
+.gfb-was{font-family:var(--display);font-size:clamp(24px,2.6vw,38px);color:var(--ash);text-decoration:line-through;text-decoration-thickness:3px}
+.gfb-now{font-family:var(--display);font-size:clamp(64px,7.4vw,118px);line-height:.85;color:var(--green)}
+.gfb-each{font-family:var(--cond);font-weight:600;font-size:clamp(18px,1.8vw,26px)}
+.gfb-bundle{font-family:var(--cond);font-weight:700;font-size:clamp(20px,2.1vw,30px);letter-spacing:.02em}
+.gfb-bundle b{color:var(--green);font-weight:700}
+.gfb-clock{font-family:var(--cond);font-weight:600;font-size:clamp(16px,1.5vw,21px);color:var(--text);display:flex;gap:.5em;align-items:baseline;flex-wrap:wrap}
+.gfb-clock .t{font-variant-numeric:tabular-nums;color:var(--green)}
+.gfb-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.gfb-btn{display:inline-block;font-family:var(--cond);font-weight:700;font-size:clamp(17px,1.5vw,21px);letter-spacing:.04em;text-decoration:none;
+  padding:.62em 1.35em;border-radius:999px;border:2px solid var(--green);background:var(--green);color:#fff;transition:transform .15s ease,background .15s ease}
+.gfb-btn:hover{transform:translateY(-1px)}
+.gfb-btn:focus-visible{outline:2px solid var(--text);outline-offset:3px}
+
+.gfb-row{position:relative;z-index:1;overflow:hidden;padding:clamp(10px,1.6vw,24px) 0 clamp(22px,2.8vw,36px)}
+.gfb-row::before,.gfb-row::after{content:"";position:absolute;top:0;bottom:0;width:clamp(30px,6vw,110px);z-index:2;pointer-events:none}
+.gfb-row::before{left:0;background:linear-gradient(to right,var(--bg),transparent)}
+.gfb-row::after{right:0;background:linear-gradient(to left,var(--bg),transparent)}
+.gfb-track{display:flex;align-items:center;gap:clamp(18px,2.2vw,36px);width:max-content;will-change:transform;transform:translate3d(0,0,0)}
+.gfb-track img{display:block;height:clamp(130px,15vw,230px);width:auto;flex:none}
+
+.gfb-custom{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:16px 28px;flex-wrap:wrap;
+  border-top:1px solid var(--line);padding:clamp(16px,2vw,26px) clamp(20px,5vw,72px)}
+.gfb-custom p{font-family:var(--display);font-size:clamp(24px,2.8vw,42px);line-height:1;text-transform:uppercase}
+.gfb-custom .cp{display:flex;align-items:baseline;gap:.45em;flex-wrap:wrap}
+.gfb-custom .cw{font-family:var(--display);font-size:clamp(20px,2vw,30px);color:var(--ash);text-decoration:line-through;text-decoration-thickness:2px}
+.gfb-custom .cn{font-family:var(--display);font-size:clamp(34px,3.6vw,56px);color:var(--green);line-height:.9}
+.gfb-btn.ghost{background:transparent;color:var(--text);border-color:var(--text)}
+
+@media (max-width:760px){
+  .gfb-top{grid-template-columns:1fr;align-items:start}
+  .gfb-custom{flex-direction:column;align-items:flex-start}
+}
+@media (prefers-reduced-motion:reduce){ .gfb-btn{transition:none} }
       `}</style>
 
       <NavigationProgress active={isNavigating} />
@@ -4668,6 +4694,14 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
           );
         })()}
 
+        {/* NEW OVERSIZED PREMIUM TEES banner -- see FourRegnGiantFaceTeesBanner.tsx.
+            Placed directly above Spring Sale Pants per the seller's request. */}
+        {isHomeView && (
+          <EditSection id="giant-face-tees-banner" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
+            <FourRegnGiantFaceTeesBanner shopUrl={sp(`/collections/${collectionSlug(TEES_SALE_COLLECTION)}`)} />
+          </EditSection>
+        )}
+
         {/* SPRING SALE PANTS COVERFLOW — intentionally uses the identical
             center-coverflow mechanics as Winter Essentials. The promo
             collection is the source of truth, so only the R499 pants in
@@ -4756,47 +4790,6 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
                     viewAllLabel="Shop all women"
                   />
                 )}
-              </div>
-            </section>
-          </EditSection>
-        )}
-
-        {isHomeView && (
-          <EditSection id="studio-collab" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
-            <section className="fr-collab">
-              <div className="fr-collab-inner">
-                <div>
-                  <div className="fr-collab-lockup">
-                    {displayLogo
-                      ? <Image src={displayLogo} alt={seller.store_name} width={100} height={26} style={{ width: "auto", height: 22 }} />
-                      : <span className="fr-collab-mark">{seller.store_name}</span>}
-                    <span className="fr-collab-x">×</span>
-                    <Image src="/private-templates/unik-labs/assets/brand/unik-wordmark-white.png" alt="UNIK Labs" width={200} height={49} style={{ width: "auto", height: 16 }} />
-                  </div>
-                  <div className="fr-collab-eyebrow">A Studio Collaboration</div>
-                  <h2 className="fr-collab-title">Turn your photos into <em>something you can wear.</em></h2>
-                  <p className="fr-collab-sub">Create custom hoodies and tees that capture your people, memories and style, made with you through UNIK Labs x 4REGN design studios.</p>
-                  <ul className="fr-collab-steps">
-                    <li>Pick your garment</li>
-                    <li>Add your photos</li>
-                    <li>Make it uniquely yours</li>
-                  </ul>
-                  <div className="fr-collab-cta-row">
-                    <a className="fr-collab-cta" href="https://uniklabs.co.za/studio" target="_blank" rel="noopener noreferrer">
-                      Make Yours
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-                    </a>
-                    <span className="fr-collab-fine">Opens UNIK Labs&rsquo; AI Studio &mdash; <b>uniklabs.co.za</b></span>
-                  </div>
-                </div>
-                <div className="fr-collab-visual">
-                  <iframe
-                    className="fr-collab-frame"
-                    src="/private-templates/unik-labs/how-to-demo.html"
-                    title="UNIK Labs AI Studio — how it works"
-                    loading="lazy"
-                  />
-                </div>
               </div>
             </section>
           </EditSection>
