@@ -111,6 +111,7 @@ interface SocialLinks {
 
 interface StoreConfig {
   four_regn_live_chat_enabled?: boolean;
+  giant_face_tees_banner_enabled?: boolean;
   show_banner_text: boolean; show_marquee: boolean; show_collections: boolean;
   show_about: boolean; show_trust_bar: boolean; show_policies: boolean;
   show_newsletter: boolean; show_announcement: boolean; announcement: string;
@@ -464,6 +465,7 @@ export default function Dashboard() {
   const [inboxReply, setInboxReply] = useState("");
   const [inboxReplySending, setInboxReplySending] = useState(false);
   const [liveChatSaving, setLiveChatSaving] = useState(false);
+  const [giantFaceBannerSaving, setGiantFaceBannerSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [dashboardLoadError, setDashboardLoadError] = useState("");
   const [tab, setTab] = useState<TabKey>("overview");
@@ -1581,6 +1583,28 @@ export default function Dashboard() {
       revalidateMyStore();
     }
     setLiveChatSaving(false);
+  };
+
+  const setGiantFaceTeesBannerEnabled = async (enabled: boolean) => {
+    if (!seller || giantFaceBannerSaving) return;
+    setGiantFaceBannerSaving(true);
+    const previousSeller = seller;
+    const previousStoreConfig = storeConfig;
+    const nextConfig: StoreConfig = {
+      ...(seller.store_config || storeConfig),
+      giant_face_tees_banner_enabled: enabled,
+    };
+    setSeller({ ...seller, store_config: nextConfig });
+    setStoreConfig((current) => ({ ...current, giant_face_tees_banner_enabled: enabled }));
+    const { error } = await supabase.from("sellers").update({ store_config: nextConfig }).eq("id", seller.id);
+    if (error) {
+      setSeller(previousSeller);
+      setStoreConfig(previousStoreConfig);
+      alert("Could not update the homepage banner: " + error.message);
+    } else {
+      revalidateMyStore();
+    }
+    setGiantFaceBannerSaving(false);
   };
 
   // Inbox replies should feel like chat, not email. Refresh the conversation
@@ -5102,6 +5126,28 @@ export default function Dashboard() {
             </div>
             {!mystoreFocusTemplates && (<>
             {seller?.subdomain && (<div style={sectionCard}><h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>Online Visual Editor</h3><p style={{ fontSize: 12, color: "var(--muted-2)", marginBottom: 16 }}>Open the full store editor to see live changes as you edit.</p><a href="/dashboard/editor" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 32px", background: G, color: "#fff", border: "none", borderRadius: 100, fontFamily: "'Schibsted Grotesk', sans-serif", fontSize: 12, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" as const, letterSpacing: "0.06em", textDecoration: "none" }}>Open Online Visual Editor &rarr;</a></div>)}
+            {(seller?.subdomain === "4regn" || seller?.template === "4regn") && (() => {
+              const bannerEnabled = seller.store_config?.giant_face_tees_banner_enabled !== false;
+              return (
+                <div style={{ ...sectionCard, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <h3 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase" as const, letterSpacing: "0.1em", color: "var(--muted)", marginBottom: 8 }}>New Oversized Premium Tees banner</h3>
+                    <p style={{ fontSize: 12, color: "var(--muted-2)", margin: 0 }}>{bannerEnabled ? "Showing on the homepage, above Spring Sale Pants." : "Hidden from the homepage."} Turn this off once the sale ends and you no longer want it shown.</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={bannerEnabled}
+                    aria-label="Show the New Oversized Premium Tees banner on the homepage"
+                    disabled={giantFaceBannerSaving}
+                    onClick={() => void setGiantFaceTeesBannerEnabled(!bannerEnabled)}
+                    style={{ flex: "0 0 auto", width: 50, height: 28, padding: 3, borderRadius: 999, border: bannerEnabled ? "1px solid " + G : "1px solid var(--border)", background: bannerEnabled ? G : "var(--panel-2)", cursor: giantFaceBannerSaving ? "wait" : "pointer", opacity: giantFaceBannerSaving ? .58 : 1, transition: "all .2s ease" }}
+                  >
+                    <span style={{ display: "block", width: 20, height: 20, borderRadius: "50%", background: "#fff", transform: bannerEnabled ? "translateX(22px)" : "translateX(0)", transition: "transform .2s ease", boxShadow: "0 3px 10px rgba(0,0,0,.28)" }} />
+                  </button>
+                </div>
+              );
+            })()}
             <CollapsibleSection id="branding" title="Branding">
               <div className="logo-banner-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 24 }}>
                 <div>

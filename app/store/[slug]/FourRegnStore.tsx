@@ -138,6 +138,10 @@ type CtaTarget =
   | { type: "none" };
 interface StoreConfig {
   four_regn_live_chat_enabled?: boolean;
+  // Defaults to shown (undefined/true) -- lets the seller turn off the New
+  // Oversized Premium Tees homepage banner (FourRegnGiantFaceTeesBanner.tsx)
+  // once its sale ends, without needing a code change/redeploy.
+  giant_face_tees_banner_enabled?: boolean;
   announcement?: string;
   show_announcement?: boolean;
   hero_image_position?: string;
@@ -4695,8 +4699,12 @@ export default function FourRegnStore({ initialSeller, initialProducts, initialD
         })()}
 
         {/* NEW OVERSIZED PREMIUM TEES banner -- see FourRegnGiantFaceTeesBanner.tsx.
-            Placed directly above Spring Sale Pants per the seller's request. */}
-        {isHomeView && (
+            Placed directly above Spring Sale Pants per the seller's request.
+            config.giant_face_tees_banner_enabled defaults to shown (undefined
+            counts as true) -- the seller has a dashboard switch (Edit My
+            Store tab) to turn this off once the sale ends, without needing a
+            code change. */}
+        {isHomeView && config.giant_face_tees_banner_enabled !== false && (
           <EditSection id="giant-face-tees-banner" isEditMode={isEditMode} hoveredSection={hoveredSection} setHoveredSection={setHoveredSection}>
             <FourRegnGiantFaceTeesBanner shopUrl={sp(`/collections/${collectionSlug(TEES_SALE_COLLECTION)}`)} />
           </EditSection>
